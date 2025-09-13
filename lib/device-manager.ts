@@ -50,6 +50,10 @@ interface EnergyCounters {
   lastGridPower?: number;
   lastBatteryPower?: number;
   lastUpdateTime?: Date;
+  
+  // Fault tracking
+  faultCode?: string | number;
+  faultTimestamp?: Date;
 }
 
 class DeviceManager extends EventEmitter {
@@ -149,6 +153,15 @@ class DeviceManager extends EventEmitter {
 
   private reportEnergyDeltas() {
     // Aggregate totals across all devices
+    let masterPowerW = 0;
+    let slavePowerW = 0;
+    let batteryPowerW = 0;
+    let gridPowerW = 0;
+    let loadPowerW = 0;
+    let batterySOC: number | null = null;
+    let faultCode: string | number | null = null;
+    let faultTimestamp: Date | null = null;
+    
     let totalCurrentWh = {
       solar: 0,
       batteryIn: 0,
@@ -161,6 +174,7 @@ class DeviceManager extends EventEmitter {
     // Collect current values from all devices
     for (const [ip, device] of this.devices.entries()) {
       const currentCounters = this.getFormattedEnergyCounters(ip);
+      const energyCounter = this.energyCounters.get(ip);
       
       if (currentCounters) {
         // Convert current values from kWh to Wh and add to totals
@@ -170,6 +184,56 @@ class DeviceManager extends EventEmitter {
         totalCurrentWh.gridIn += currentCounters.gridIn * 1000;
         totalCurrentWh.gridOut += currentCounters.gridOut * 1000;
         totalCurrentWh.load += currentCounters.load * 1000;
+      }
+      
+      // Collect current power values and separate master/slave solar
+      if (device.data?.Body?.Data?.Site) {
+        const site = device.data.Body.Data.Site;
+        
+        // Solar power - separate master from slaves
+        if (site.P_PV !== undefined && site.P_PV !== null) {
+          if (device.isMaster) {
+            masterPowerW += site.P_PV;
+          } else {
+            slavePowerW += site.P_PV;
+          }
+        }
+        
+        // Battery power (only master reports this)
+        if (device.isMaster && site.P_Akku !== undefined && site.P_Akku !== null) {
+          batteryPowerW = site.P_Akku;
+        }
+        
+        // Grid power (only master reports this)
+        if (device.isMaster && site.P_Grid !== undefined && site.P_Grid !== null) {
+          gridPowerW = site.P_Grid;
+        }
+        
+        // Load power (only master reports this)
+        if (device.isMaster && site.P_Load !== undefined && site.P_Load !== null) {
+          loadPowerW = Math.abs(site.P_Load);
+        }
+        
+        // Battery SOC (from first inverter)
+        if (batterySOC === null && device.data.Body.Data.Inverters) {
+          const firstInverter = Object.values(device.data.Body.Data.Inverters)[0] as any;
+          if (firstInverter?.SOC !== undefined && firstInverter?.SOC !== null) {
+            batterySOC = firstInverter.SOC;
+          }
+        }
+      }
+      
+      // Check for fault codes
+      if (energyCounter?.faultCode) {
+        faultCode = energyCounter.faultCode;
+        faultTimestamp = energyCounter.faultTimestamp || null;
+      }
+      
+      // Check inverter status code
+      if (device.info?.StatusCode && device.info.StatusCode !== 7) {
+        // StatusCode 7 is normal operation
+        faultCode = `INVERTER_STATUS_${device.info.StatusCode}`;
+        faultTimestamp = new Date();
       }
     }
     
@@ -199,25 +263,68 @@ class DeviceManager extends EventEmitter {
       // Store the advanced snapshot for next time
       this.lastEnergySnapshot.set('total', nextSnapshot);
       
-      // Report current totals as integers
-      const currentTotalWhRounded = {
-        solar: Math.round(totalCurrentWh.solar),
-        batteryIn: Math.round(totalCurrentWh.batteryIn),
-        batteryOut: Math.round(totalCurrentWh.batteryOut),
-        gridIn: Math.round(totalCurrentWh.gridIn),
-        gridOut: Math.round(totalCurrentWh.gridOut),
-        load: Math.round(totalCurrentWh.load)
-      };
+      // Calculate separate master/slave energy deltas
+      const masterSnapshot = this.lastEnergySnapshot.get('master') || { solar: 0 };
+      const slaveSnapshot = this.lastEnergySnapshot.get('slave') || { solar: 0 };
       
-      // Emit energy deltas
+      // Approximate master/slave split based on current power ratio
+      const totalSolarPowerW = masterPowerW + slavePowerW;
+      let masterSolarIntervalWh = 0;
+      let slaveSolarIntervalWh = 0;
+      
+      if (totalSolarPowerW > 0) {
+        const masterRatio = masterPowerW / totalSolarPowerW;
+        masterSolarIntervalWh = Math.round(deltaWh.solar * masterRatio);
+        slaveSolarIntervalWh = deltaWh.solar - masterSolarIntervalWh;
+      }
+      
+      // Update master/slave snapshots
+      this.lastEnergySnapshot.set('master', { solar: masterSnapshot.solar + masterSolarIntervalWh });
+      this.lastEnergySnapshot.set('slave', { solar: slaveSnapshot.solar + slaveSolarIntervalWh });
+      
+      // Emit energy deltas in the new format
       this.emit('energyDeltas', {
         timestamp: new Date(),
-        delta: deltaWh,  // Integer Wh deltas
-        current: currentTotalWhRounded  // Integer Wh totals
+        solarW: masterPowerW + slavePowerW,
+        solarIntervalWh: deltaWh.solar,
+        
+        solarLocalW: masterPowerW,
+        solarLocalIntervalWh: masterSolarIntervalWh,
+        
+        solarRemoteW: slavePowerW,
+        solarRemoteIntervalWh: slaveSolarIntervalWh,
+        
+        loadW: loadPowerW,
+        loadIntervalWh: deltaWh.load,
+        
+        batteryW: batteryPowerW,
+        batteryInIntervalWh: deltaWh.batteryIn,
+        batteryOutIntervalWh: deltaWh.batteryOut,
+        
+        gridW: gridPowerW,
+        gridInIntervalWh: deltaWh.gridIn,
+        gridOutIntervalWh: deltaWh.gridOut,
+        
+        batterySOC: batterySOC,
+        
+        faultCode: faultCode,
+        faultTimestamp: faultTimestamp,
+        
+        generatorStatus: null,  // Fronius doesn't have generator
+        
+        // Total accumulated values in kWh (null for now, can be added later)
+        solarKwhTotal: null,
+        loadKwhTotal: null,
+        batteryInKwhTotal: null,
+        batteryOutKwhTotal: null,
+        gridInKwhTotal: null,
+        gridOutKwhTotal: null
       });
     } else {
       // First snapshot - initialize with current values
       this.lastEnergySnapshot.set('total', totalCurrentWh);
+      this.lastEnergySnapshot.set('master', { solar: 0 });
+      this.lastEnergySnapshot.set('slave', { solar: 0 });
     }
   }
 
@@ -362,8 +469,45 @@ class DeviceManager extends EventEmitter {
           timestamp: new Date()
         });
       }
+      
+      // Clear fault code if everything is successful
+      const existingCounters = this.energyCounters.get(ip);
+      if (existingCounters) {
+        delete existingCounters.faultCode;
+        delete existingCounters.faultTimestamp;
+        this.energyCounters.set(ip, existingCounters);
+      }
     } catch (error) {
       console.error(`Error fetching data for ${ip}:`, error);
+      
+      // Track error in energy counters
+      const counters = this.energyCounters.get(ip) || {
+        solarIntegrated: 0,
+        gridImportIntegrated: 0,
+        gridExportIntegrated: 0,
+        batteryCharged: 0,
+        batteryDischarged: 0
+      };
+      
+      // Set fault code based on error type
+      if (axios.isAxiosError(error)) {
+        if (error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT') {
+          counters.faultCode = 'TIMEOUT';
+        } else if (error.response) {
+          counters.faultCode = `HTTP_${error.response.status}`;
+        } else if (error.code === 'ECONNREFUSED') {
+          counters.faultCode = 'CONNECTION_REFUSED';
+        } else if (error.code === 'EHOSTUNREACH') {
+          counters.faultCode = 'HOST_UNREACHABLE';
+        } else {
+          counters.faultCode = error.code || 'NETWORK_ERROR';
+        }
+      } else {
+        counters.faultCode = 'UNKNOWN_ERROR';
+      }
+      
+      counters.faultTimestamp = new Date();
+      this.energyCounters.set(ip, counters);
     }
   }
 
