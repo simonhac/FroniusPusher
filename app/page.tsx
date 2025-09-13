@@ -316,7 +316,13 @@ export default function Home() {
           </div>
         ) : devices.length === 0 ? (
           <div className="flex items-center justify-center h-64 bg-black rounded">
-            <p className="text-gray-500 text-sm">No devices found</p>
+            <div className="text-center">
+              <svg className="w-12 h-12 mx-auto mb-2 text-gray-600" fill="none" 
+                stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+              </svg>
+              <p className="text-gray-500 text-sm">No devices found</p>
+            </div>
           </div>
         ) : (
           devices
@@ -329,15 +335,15 @@ export default function Home() {
             .map((device) => (
             <div
               key={device.ip}
-              className="bg-black rounded flex items-center"
+              className="bg-black rounded flex items-start"
             >
               <img 
                 src="/images/Gen24.png" 
                 alt="Fronius Inverter" 
-                className="w-48 h-48 object-contain"
+                className="w-48 h-48 object-contain mr-5"
               />
               <div className="flex-1">
-                <div className="flex items-center space-x-3">
+                <div className="flex items-center space-x-3 mt-4">
                   <h3 className="text-2xl font-semibold text-white">
                     {device.info?.CustomName || 'Fronius Inverter'}
                   </h3>
@@ -384,10 +390,10 @@ export default function Home() {
                 
                 {/* Power Cards */}
                 {device.data?.Body?.Data?.Site && (
-                  <div className="grid grid-cols-4 gap-2 mt-4">
+                  <div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-2 mt-4 mb-5">
                     {/* Solar */}
                     {device.data.Body.Data.Site.P_PV !== undefined && device.data.Body.Data.Site.P_PV !== null && (
-                      <div className="bg-gray-900 p-2 rounded">
+                      <div className="bg-gray-900 p-2 rounded min-w-[180px]">
                         <p className="text-xs text-gray-500">Solar</p>
                         <div className="flex items-center space-x-2">
                           <svg className="w-6 h-6 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
@@ -403,7 +409,7 @@ export default function Home() {
                     
                     {/* Battery */}
                     {device.data.Body.Data.Site.P_Akku !== undefined && device.data.Body.Data.Site.P_Akku !== null && (
-                      <div className="bg-gray-900 p-2 rounded">
+                      <div className="bg-gray-900 p-2 rounded min-w-[180px]">
                         <p className="text-xs text-gray-500">Battery</p>
                         <div className="flex items-center space-x-2">
                           <svg className="w-6 h-6 text-blue-400" fill="currentColor" viewBox="0 0 24 24">
@@ -437,7 +443,7 @@ export default function Home() {
                     
                     {/* Load */}
                     {device.data.Body.Data.Site.P_Load !== undefined && device.data.Body.Data.Site.P_Load !== null && (
-                      <div className="bg-gray-900 p-2 rounded">
+                      <div className="bg-gray-900 p-2 rounded min-w-[180px]">
                         <p className="text-xs text-gray-500">Load</p>
                         <div className="flex items-center space-x-2">
                           <svg className="w-6 h-6 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -453,7 +459,7 @@ export default function Home() {
                     
                     {/* Grid */}
                     {device.data.Body.Data.Site.P_Grid !== undefined && device.data.Body.Data.Site.P_Grid !== null && (
-                      <div className="bg-gray-900 p-2 rounded">
+                      <div className="bg-gray-900 p-2 rounded min-w-[180px]">
                         <p className="text-xs text-gray-500">Grid</p>
                         <div className="flex items-center space-x-2">
                           <svg className="w-6 h-6 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
