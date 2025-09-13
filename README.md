@@ -121,7 +121,7 @@ This project is not affiliated with or endorsed by Fronius International GmbH. F
 
 ## Author
 
-Simon Hackett
+Simon Holmes à Court
 
 ## Acknowledgments
 
