@@ -11,15 +11,19 @@ const PowerChart = dynamic(() => import('@/components/PowerChart'), {
   </div>
 });
 
+const EnergyTable = dynamic(() => import('@/components/EnergyTable'), { 
+  ssr: false 
+});
+
 interface FroniusDevice {
   ip: string;
   mac: string;
   hostname?: string;
   isMaster: boolean;
+  serialNumber: string;
   data?: any;
   info?: {
     CustomName?: string;
-    UniqueID?: string;
     DT?: number;
     StatusCode?: number;
     manufacturer?: string;
@@ -41,6 +45,7 @@ export default function Home() {
   const [scanStatus, setScanStatus] = useState<string | null>(null);
   const [isScanning, setIsScanning] = useState(false);
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
+  const [energyCounters, setEnergyCounters] = useState<Map<string, any>>(new Map());
 
   // Initialize SSE connection
   useEffect(() => {
@@ -101,6 +106,14 @@ export default function Home() {
         }
       });
 
+      // Handle energy delta updates (once per minute)
+      eventSource.addEventListener('energyDeltas', (event) => {
+        const data = JSON.parse(event.data);
+        const timestamp = new Date(data.timestamp).toLocaleTimeString();
+        
+        console.log(`[${timestamp}] Energy Delta (Wh):`, data.delta);
+      });
+
       // Handle individual device data updates
       eventSource.addEventListener('deviceData', (event) => {
         const update = JSON.parse(event.data);
@@ -117,6 +130,15 @@ export default function Home() {
         // Update selected device if it's the one being updated
         if (selectedDevice?.ip === update.ip) {
           setSelectedDevice(prev => prev ? { ...prev, data: update.data, lastDataFetch: update.timestamp } : null);
+        }
+        
+        // Store energy counters
+        if (update.energyCounters) {
+          setEnergyCounters(prev => {
+            const newMap = new Map(prev);
+            newMap.set(update.ip, update.energyCounters);
+            return newMap;
+          });
         }
         
         // Store historical data for charts
@@ -162,7 +184,7 @@ export default function Home() {
         eventSourceRef.current.close();
       }
     };
-  }, [selectedDevice?.ip]);
+  }, []);
 
   // Load initial status and history
   useEffect(() => {
@@ -372,7 +394,7 @@ export default function Home() {
                 </div>
                 <p className="text-xs">
                   <span className="text-gray-400 font-medium">{device.info?.model || 'Unknown Model'}</span>
-                  <span className="text-gray-500 ml-2">Serial# {device.info?.UniqueID || 'Unknown'}</span>
+                  <span className="text-gray-500 ml-2">Serial# {device.serialNumber}</span>
                 </p>
                 
                 {/* Power Cards */}
@@ -480,6 +502,19 @@ export default function Home() {
             } />
           </div>
         </div>
+      )}
+
+      {/* Energy Table - Below Chart */}
+      {devices.length > 0 && energyCounters.size > 0 && (
+        <EnergyTable 
+          devices={devices
+            .filter(device => energyCounters.has(device.ip))
+            .map(device => ({
+              ip: device.ip,
+              name: device.info?.CustomName || device.hostname?.split('.')[0] || device.ip,
+              energyCounters: energyCounters.get(device.ip)!
+            }))}
+        />
       )}
 
     </div>

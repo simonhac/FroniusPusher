@@ -17,10 +17,10 @@ interface FroniusDevice {
   mac: string;
   hostname?: string;
   isMaster: boolean;
+  serialNumber: string;  // Required unique identifier
   data?: any;
   info?: {
     CustomName?: string;
-    UniqueID?: string;
     DT?: number;
     StatusCode?: number;
     manufacturer?: string;
@@ -269,6 +269,7 @@ export async function discoverFroniusInverters(): Promise<FroniusDevice[]> {
           
           // Fetch inverter info for display
           let info: any = {};
+          let serialNumber: string | undefined;
           try {
             const infoResponse = await axios.get(`http://${ip}/solar_api/v1/GetInverterInfo.cgi`, {
               timeout: 2000
@@ -278,13 +279,13 @@ export async function discoverFroniusInverters(): Promise<FroniusDevice[]> {
               const inverters = Object.values(infoResponse.data.Body.Data);
               if (inverters.length > 0) {
                 const firstInverter = inverters[0] as any;
+                serialNumber = firstInverter.UniqueID;
                 info = {
                   CustomName: firstInverter.CustomName,
-                  UniqueID: firstInverter.UniqueID,
                   DT: firstInverter.DT,
                   StatusCode: firstInverter.StatusCode
                 };
-                console.log(`  Device info: ${info.CustomName || 'No name'} (S/N: ${info.UniqueID || 'Unknown'})`);
+                console.log(`  Device info: ${info.CustomName || 'No name'} (S/N: ${serialNumber || 'Unknown'})`);
               }
             }
           } catch (error) {
@@ -307,11 +308,19 @@ export async function discoverFroniusInverters(): Promise<FroniusDevice[]> {
           }
           
           const isMaster = await checkIfMaster(ip);
+          
+          // Ensure we always have a serial number - use the device's UniqueID or generate from MAC
+          if (!serialNumber) {
+            serialNumber = `UNKNOWN_${arpEntry.mac.replace(/:/g, '')}`;
+            console.log(`  Warning: No serial number found, using generated ID: ${serialNumber}`);
+          }
+          
           froniusDevices.push({
             ip,
             mac: arpEntry.mac,
             hostname: arpEntry.hostname,
             isMaster,
+            serialNumber,
             info
           });
         }
