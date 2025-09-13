@@ -414,10 +414,11 @@ class DeviceManager extends EventEmitter {
           const integratedTotal = counters.solarIntegrated; // Keep in Wh
           const hardwareTotal = newValue - (counters.solarTotalInitial || 0); // Keep in Wh
           const difference = integratedTotal - hardwareTotal;
+          const diffPercent = hardwareTotal !== 0 ? (difference / hardwareTotal * 100) : 0;
           const timestamp = new Date().toLocaleTimeString('en-GB', { hour12: false });
           const hostname = device?.hostname ? device.hostname.split('.')[0] : ip;
           const identifier = device ? `${hostname}/${device.serialNumber}` : ip;
-          console.log(`[${timestamp}] [${identifier}] Solar HW update: +${hardwareDelta} Wh | HW total: ${hardwareTotal.toFixed(0)} Wh | Integrated: ${integratedTotal.toFixed(0)} Wh | Diff: ${difference.toFixed(0)} Wh`);
+          console.log(`[${timestamp}] [${identifier}] Solar HW update: +${hardwareDelta} Wh | HW total: ${hardwareTotal.toFixed(0)} Wh | Integrated: ${integratedTotal.toFixed(0)} Wh | Diff: ${difference.toFixed(0)} Wh (${diffPercent.toFixed(1)}%)`);
           counters.solarTotalCurrent = newValue;
         }
       }
@@ -432,10 +433,11 @@ class DeviceManager extends EventEmitter {
             const integratedTotal = counters.gridImportIntegrated; // Keep in Wh
             const hardwareTotal = newValue - (counters.gridConsumedInitial || 0); // Keep in Wh
             const difference = integratedTotal - hardwareTotal;
+            const diffPercent = hardwareTotal !== 0 ? (difference / hardwareTotal * 100) : 0;
             const timestamp = new Date().toLocaleTimeString('en-GB', { hour12: false });
             const hostname = device?.hostname ? device.hostname.split('.')[0] : ip;
             const identifier = device ? `${hostname}/${device.serialNumber}` : ip;
-            console.log(`[${timestamp}] [${identifier}] Grid Import HW update: +${hardwareDelta} Wh | HW total: ${hardwareTotal.toFixed(0)} Wh | Integrated: ${integratedTotal.toFixed(0)} Wh | Diff: ${difference.toFixed(0)} Wh`);
+            console.log(`[${timestamp}] [${identifier}] Grid Import HW update: +${hardwareDelta} Wh | HW total: ${hardwareTotal.toFixed(0)} Wh | Integrated: ${integratedTotal.toFixed(0)} Wh | Diff: ${difference.toFixed(0)} Wh (${diffPercent.toFixed(1)}%)`);
             counters.gridConsumedCurrent = newValue;
           }
         }
@@ -447,10 +449,11 @@ class DeviceManager extends EventEmitter {
             const integratedTotal = counters.gridExportIntegrated; // Keep in Wh
             const hardwareTotal = newValue - (counters.gridProducedInitial || 0); // Keep in Wh
             const difference = integratedTotal - hardwareTotal;
+            const diffPercent = hardwareTotal !== 0 ? (difference / hardwareTotal * 100) : 0;
             const timestamp = new Date().toLocaleTimeString('en-GB', { hour12: false });
             const hostname = device?.hostname ? device.hostname.split('.')[0] : ip;
             const identifier = device ? `${hostname}/${device.serialNumber}` : ip;
-            console.log(`[${timestamp}] [${identifier}] Grid Export HW update: +${hardwareDelta} Wh | HW total: ${hardwareTotal.toFixed(0)} Wh | Integrated: ${integratedTotal.toFixed(0)} Wh | Diff: ${difference.toFixed(0)} Wh`);
+            console.log(`[${timestamp}] [${identifier}] Grid Export HW update: +${hardwareDelta} Wh | HW total: ${hardwareTotal.toFixed(0)} Wh | Integrated: ${integratedTotal.toFixed(0)} Wh | Diff: ${difference.toFixed(0)} Wh (${diffPercent.toFixed(1)}%)`);
             counters.gridProducedCurrent = newValue;
           }
         }

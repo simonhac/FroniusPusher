@@ -235,7 +235,7 @@ export default function PowerChart({ devices }: PowerChartProps) {
               label += ': ';
             }
             if (context.parsed.y !== null) {
-              label += context.parsed.y.toFixed(2) + ' kW';
+              label += context.parsed.y.toFixed(3) + ' kW';
             }
             return label;
           }

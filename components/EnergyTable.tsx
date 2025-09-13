@@ -45,7 +45,7 @@ export default function EnergyTable({ devices }: EnergyTableProps) {
     },
     { 
       key: 'batteryIn', 
-      label: <span>Battery Charged<sup className="text-xs">*</sup></span>, 
+      label: 'Battery Charged', 
       color: 'text-green-400',
       icon: (
         <svg className="w-4 h-4 text-green-400" fill="currentColor" viewBox="0 0 24 24">
@@ -56,7 +56,7 @@ export default function EnergyTable({ devices }: EnergyTableProps) {
     },
     { 
       key: 'batteryOut', 
-      label: <span>Battery Discharged<sup className="text-xs">*</sup></span>, 
+      label: 'Battery Discharged', 
       color: 'text-blue-400',
       icon: (
         <svg className="w-4 h-4 text-blue-400" fill="currentColor" viewBox="0 0 24 24">
@@ -86,7 +86,7 @@ export default function EnergyTable({ devices }: EnergyTableProps) {
     },
     { 
       key: 'load', 
-      label: <span>Load Consumed<sup className="text-xs">†</sup></span>, 
+      label: 'Load Consumed', 
       color: 'text-orange-400',
       icon: (
         <svg className="w-4 h-4 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -117,7 +117,7 @@ export default function EnergyTable({ devices }: EnergyTableProps) {
   };
 
   return (
-    <div className="bg-gray-900 rounded-lg p-4 mt-4">
+    <div className="bg-black rounded-lg p-4 mt-4">
       <h3 className="text-lg font-semibold text-white mb-3">Energy Counters (kWh)</h3>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
@@ -162,13 +162,6 @@ export default function EnergyTable({ devices }: EnergyTableProps) {
             ))}
           </tbody>
         </table>
-      </div>
-      <div className="mt-3 pt-3 border-t border-gray-700">
-        <p className="text-xs text-gray-500">
-          Energy values are net changes since system startup.
-          <span className="ml-2">* Accumulated from power readings</span>
-          <span className="ml-2">† Calculated using energy balance</span>
-        </p>
       </div>
     </div>
   );
