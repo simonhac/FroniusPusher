@@ -1,36 +1,130 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Fronius Pusher
 
-## Getting Started
+A real-time monitoring dashboard for Fronius solar inverters on your local network.
 
-First, run the development server:
+![Next.js](https://img.shields.io/badge/Next.js-15.5.3-black)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue)
+![License](https://img.shields.io/badge/License-MIT-green)
 
+## Features
+
+- 🔍 **Automatic Discovery** - Automatically discovers Fronius inverters on your local network using ARP scanning
+- 📊 **Real-time Monitoring** - Live updates every 2 seconds via Server-Sent Events (SSE)
+- 📈 **Power Flow Visualization** - 10-minute historical chart showing solar, battery, load, and grid power
+- 🎨 **Modern UI** - Dark theme with responsive design using Tailwind CSS
+- 🔋 **Battery Status** - Real-time battery charge level and charging/discharging status
+- 🌐 **Multi-Inverter Support** - Monitor multiple inverters with automatic master/slave detection
+
+## Prerequisites
+
+- Node.js 18.0 or higher
+- npm or yarn
+- Fronius Gen24 inverter(s) on your local network
+- Network access to inverter's Solar API
+
+## Installation
+
+1. Clone the repository:
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+git clone https://github.com/simonhac/FroniusPusher.git
+cd FroniusPusher
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+2. Install dependencies:
+```bash
+npm install
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+3. Run the development server:
+```bash
+npm run dev
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+4. Open [http://localhost:8080](http://localhost:8080) in your browser
 
-## Learn More
+## Production Deployment
 
-To learn more about Next.js, take a look at the following resources:
+Build the application for production:
+```bash
+npm run build
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Start the production server:
+```bash
+npm start
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Configuration
 
-## Deploy on Vercel
+The application runs on port 8080 by default. To change the port:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+# Development
+npm run dev -- --port 3000
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+# Production
+PORT=3000 npm start
+```
+
+## How It Works
+
+1. **Network Discovery**: The server scans your local network using ARP to find devices
+2. **Inverter Detection**: Each discovered device is checked for Fronius Solar API endpoints
+3. **Master/Slave Detection**: Inverters are classified based on their monitoring capabilities (master monitors load)
+4. **Real-time Updates**: Data is fetched every 2 seconds and pushed to the client via SSE
+5. **Historical Data**: The server maintains a 10-minute rolling buffer of power data for charting
+
+## API Endpoints
+
+- `GET /api/fronius?action=status` - Get current device status
+- `GET /api/fronius?action=scan` - Trigger network scan for inverters
+- `GET /api/fronius?action=history` - Get historical power data
+- `GET /api/fronius/sse` - Server-sent events stream for real-time updates
+
+## Technology Stack
+
+- **Frontend**: Next.js 15.5, React, TypeScript, Tailwind CSS
+- **Charts**: Chart.js with react-chartjs-2
+- **Backend**: Next.js API routes, Node.js
+- **Real-time**: Server-Sent Events (SSE)
+- **Styling**: Tailwind CSS, DM Sans font
+
+## Browser Support
+
+- Chrome/Edge (latest)
+- Firefox (latest)
+- Safari (latest)
+
+## Troubleshooting
+
+### No inverters found
+- Ensure your computer is on the same network as the inverters
+- Check that the Solar API is enabled on your inverter
+- Try manually accessing `http://<inverter-ip>/solar_api/GetAPIVersion.cgi`
+
+### Connection issues
+- Verify firewall settings allow access to inverter IPs
+- Check that port 8080 is not blocked
+- Ensure Node.js has network permissions
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Disclaimer
+
+This project is not affiliated with or endorsed by Fronius International GmbH. Fronius is a registered trademark of Fronius International GmbH.
+
+## Author
+
+Simon Hackett
+
+## Acknowledgments
+
+- Fronius for their Solar API documentation
+- The Next.js team for an excellent framework
+- Chart.js contributors for the visualization library
