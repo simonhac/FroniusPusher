@@ -42,7 +42,6 @@ export default function Home() {
   const eventSourceRef = useRef<EventSource | null>(null);
   const [, forceUpdate] = useState({});
   const [historicalData, setHistoricalData] = useState<Map<string, any[]>>(new Map());
-  const [scanStatus, setScanStatus] = useState<string | null>(null);
   const [isScanning, setIsScanning] = useState(false);
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
   const [energyCounters, setEnergyCounters] = useState<Map<string, any>>(new Map());
@@ -95,14 +94,11 @@ export default function Home() {
       // Handle scan status updates
       eventSource.addEventListener('scanStatus', (event) => {
         const status = JSON.parse(event.data);
-        setScanStatus(status.message);
         
         if (status.status === 'started' || status.status === 'scanning') {
           setIsScanning(true);
         } else if (status.status === 'completed' || status.status === 'error') {
           setIsScanning(false);
-          // Clear status message after 3 seconds
-          setTimeout(() => setScanStatus(null), 3000);
         }
       });
 
@@ -258,9 +254,7 @@ export default function Home() {
       }
     } catch (error) {
       console.error('Error initiating scan:', error);
-      setScanStatus('Error initiating scan');
       setIsScanning(false);
-      setTimeout(() => setScanStatus(null), 3000);
     }
   };
 
@@ -310,11 +304,6 @@ export default function Home() {
             )}
           </button>
         </div>
-        {scanStatus && (
-          <p className="text-sm text-blue-400 mt-2 font-medium">
-            {scanStatus}
-          </p>
-        )}
       </div>
 
       {/* Inverter Panels */}

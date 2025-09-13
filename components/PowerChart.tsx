@@ -88,41 +88,47 @@ export default function PowerChart({ devices }: PowerChartProps) {
   // Calculate combined totals for battery, load, and grid first
   const combinedBattery = timePoints.map(time => {
     let total = 0;
+    let hasData = false;
     devices.forEach(device => {
       const point = device.data.find(p => 
         Math.abs(p.timestamp.getTime() - time.getTime()) < 1000
       );
       if (point?.battery !== undefined) {
         total += point.battery;
+        hasData = true;
       }
     });
-    return total !== 0 ? total / 1000 : null;
+    return hasData ? total / 1000 : null;
   });
   
   const combinedGrid = timePoints.map(time => {
     let total = 0;
+    let hasData = false;
     devices.forEach(device => {
       const point = device.data.find(p => 
         Math.abs(p.timestamp.getTime() - time.getTime()) < 1000
       );
       if (point?.grid !== undefined) {
         total += point.grid;
+        hasData = true;
       }
     });
-    return total !== 0 ? total / 1000 : null;
+    return hasData ? total / 1000 : null;
   });
   
   const combinedLoad = timePoints.map(time => {
     let total = 0;
+    let hasData = false;
     devices.forEach(device => {
       const point = device.data.find(p => 
         Math.abs(p.timestamp.getTime() - time.getTime()) < 1000
       );
       if (point?.load !== undefined) {
         total += Math.abs(point.load);
+        hasData = true;
       }
     });
-    return total !== 0 ? total / 1000 : null;
+    return hasData ? total / 1000 : null;
   });
   
   // Add datasets in order for legend: Solar, Battery, Load, Grid
@@ -272,7 +278,10 @@ export default function PowerChart({ devices }: PowerChartProps) {
         title: {
           display: false
         },
+        // Set minimum to -1 if we have battery data, but allow it to go lower if needed
+        suggestedMin: combinedBattery.some(val => val !== null) ? -1.0 : undefined,
         ticks: {
+          stepSize: 1.0,  // Force ticks at multiples of 1.0 kW
           font: {
             size: 15,  // Increased by 50% from 10
             family: 'DM Sans, sans-serif'

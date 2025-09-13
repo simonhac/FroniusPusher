@@ -38,11 +38,16 @@ interface EnergyCounters {
   gridConsumedCurrent?: number;
   gridProducedCurrent?: number;
   
-  // Accumulated values for battery
+  // Integrated values from power readings
+  solarIntegrated: number;         // Integrated from P_PV
+  gridImportIntegrated: number;    // Integrated from P_Grid when positive
+  gridExportIntegrated: number;    // Integrated from P_Grid when negative
   batteryCharged: number;          // Accumulated when P_Akku < 0
   batteryDischarged: number;       // Accumulated when P_Akku > 0
   
   // Last power values for accumulation
+  lastSolarPower?: number;
+  lastGridPower?: number;
   lastBatteryPower?: number;
   lastUpdateTime?: Date;
 }
@@ -100,16 +105,46 @@ class DeviceManager extends EventEmitter {
       this.pollingInterval = null;
     }
     if (this.energyDeltaInterval) {
-      clearInterval(this.energyDeltaInterval);
+      clearTimeout(this.energyDeltaInterval);
       this.energyDeltaInterval = null;
     }
   }
 
   private startEnergyDeltaReporting() {
-    // Report energy deltas every minute
-    this.energyDeltaInterval = setInterval(() => {
-      this.reportEnergyDeltas();
-    }, 60 * 1000); // 60 seconds
+    // Schedule reports at 5 seconds past each minute
+    const scheduleNextReport = () => {
+      const now = new Date();
+      const currentSeconds = now.getSeconds();
+      
+      // If we're at or past 5 seconds, run immediately and schedule for next minute
+      if (currentSeconds >= 5) {
+        this.reportEnergyDeltas();
+        
+        // Calculate delay until 5 seconds past the next minute
+        const nextMinute = new Date(now);
+        nextMinute.setMinutes(nextMinute.getMinutes() + 1);
+        nextMinute.setSeconds(5);
+        nextMinute.setMilliseconds(0);
+        const delay = nextMinute.getTime() - now.getTime();
+        
+        this.energyDeltaInterval = setTimeout(() => {
+          scheduleNextReport();
+        }, delay);
+      } else {
+        // We're before 5 seconds, wait until 5 seconds of this minute
+        const targetTime = new Date(now);
+        targetTime.setSeconds(5);
+        targetTime.setMilliseconds(0);
+        const delay = targetTime.getTime() - now.getTime();
+        
+        this.energyDeltaInterval = setTimeout(() => {
+          scheduleNextReport();
+        }, delay);
+      }
+    };
+    
+    // Start the scheduling
+    scheduleNextReport();
   }
 
   private reportEnergyDeltas() {
@@ -268,7 +303,7 @@ class DeviceManager extends EventEmitter {
     
     await Promise.all(updatePromises);
     const duration = ((Date.now() - startTime) / 1000).toFixed(1);
-    console.log(`${this.devices.size} devices updated in ${duration}s`);
+    // console.log(`${this.devices.size} devices updated in ${duration}s`);
   }
 
   private async updateDeviceData(ip: string): Promise<void> {
@@ -335,10 +370,14 @@ class DeviceManager extends EventEmitter {
   private updateEnergyCounters(ip: string, powerFlowData: any, inverterData: any, meterData: any): void {
     let counters = this.energyCounters.get(ip);
     const now = new Date();
+    const device = this.devices.get(ip);
     
     // Initialize counters if not exist
     if (!counters) {
       counters = {
+        solarIntegrated: 0,
+        gridImportIntegrated: 0,
+        gridExportIntegrated: 0,
         batteryCharged: 0,
         batteryDischarged: 0
       };
@@ -347,7 +386,10 @@ class DeviceManager extends EventEmitter {
       if (inverterData?.Body?.Data?.TOTAL_ENERGY?.Values?.['1'] !== undefined) {
         counters.solarTotalInitial = inverterData.Body.Data.TOTAL_ENERGY.Values['1'];
         counters.solarTotalCurrent = inverterData.Body.Data.TOTAL_ENERGY.Values['1'];
-        console.log(`[${ip}] Initialized solar counter: ${counters.solarTotalInitial} Wh`);
+        const hostname = device?.hostname ? device.hostname.split('.')[0] : ip;
+        const identifier = device ? `${hostname}/${device.serialNumber}` : ip;
+        const formattedValue = Math.round(counters.solarTotalInitial!).toLocaleString();
+        console.log(`[${identifier}] Initialized solar counter: ${formattedValue} Wh`);
       }
       
       if (meterData?.Body?.Data?.['0']) {
@@ -364,35 +406,91 @@ class DeviceManager extends EventEmitter {
       
       this.energyCounters.set(ip, counters);
     } else {
-      // Only update current values after initialization
+      // Check for hardware counter changes and compare with integrated values
       if (inverterData?.Body?.Data?.TOTAL_ENERGY?.Values?.['1'] !== undefined) {
         const newValue = inverterData.Body.Data.TOTAL_ENERGY.Values['1'];
         if (newValue !== counters.solarTotalCurrent) {
-          console.log(`[${ip}] Solar updated: ${counters.solarTotalCurrent} -> ${newValue} Wh (diff: ${newValue - (counters.solarTotalInitial || 0)} Wh)`);
+          const hardwareDelta = newValue - (counters.solarTotalCurrent || 0);
+          const integratedTotal = counters.solarIntegrated; // Keep in Wh
+          const hardwareTotal = newValue - (counters.solarTotalInitial || 0); // Keep in Wh
+          const difference = integratedTotal - hardwareTotal;
+          const timestamp = new Date().toLocaleTimeString('en-GB', { hour12: false });
+          const hostname = device?.hostname ? device.hostname.split('.')[0] : ip;
+          const identifier = device ? `${hostname}/${device.serialNumber}` : ip;
+          console.log(`[${timestamp}] [${identifier}] Solar HW update: +${hardwareDelta} Wh | HW total: ${hardwareTotal.toFixed(0)} Wh | Integrated: ${integratedTotal.toFixed(0)} Wh | Diff: ${difference.toFixed(0)} Wh`);
           counters.solarTotalCurrent = newValue;
         }
       }
       
       if (meterData?.Body?.Data?.['0']) {
         const meter = meterData.Body.Data['0'];
+        
         if (meter.EnergyReal_WAC_Sum_Consumed !== undefined) {
-          counters.gridConsumedCurrent = meter.EnergyReal_WAC_Sum_Consumed;
+          const newValue = meter.EnergyReal_WAC_Sum_Consumed;
+          if (newValue !== counters.gridConsumedCurrent) {
+            const hardwareDelta = newValue - (counters.gridConsumedCurrent || 0);
+            const integratedTotal = counters.gridImportIntegrated; // Keep in Wh
+            const hardwareTotal = newValue - (counters.gridConsumedInitial || 0); // Keep in Wh
+            const difference = integratedTotal - hardwareTotal;
+            const timestamp = new Date().toLocaleTimeString('en-GB', { hour12: false });
+            const hostname = device?.hostname ? device.hostname.split('.')[0] : ip;
+            const identifier = device ? `${hostname}/${device.serialNumber}` : ip;
+            console.log(`[${timestamp}] [${identifier}] Grid Import HW update: +${hardwareDelta} Wh | HW total: ${hardwareTotal.toFixed(0)} Wh | Integrated: ${integratedTotal.toFixed(0)} Wh | Diff: ${difference.toFixed(0)} Wh`);
+            counters.gridConsumedCurrent = newValue;
+          }
         }
+        
         if (meter.EnergyReal_WAC_Sum_Produced !== undefined) {
-          counters.gridProducedCurrent = meter.EnergyReal_WAC_Sum_Produced;
+          const newValue = meter.EnergyReal_WAC_Sum_Produced;
+          if (newValue !== counters.gridProducedCurrent) {
+            const hardwareDelta = newValue - (counters.gridProducedCurrent || 0);
+            const integratedTotal = counters.gridExportIntegrated; // Keep in Wh
+            const hardwareTotal = newValue - (counters.gridProducedInitial || 0); // Keep in Wh
+            const difference = integratedTotal - hardwareTotal;
+            const timestamp = new Date().toLocaleTimeString('en-GB', { hour12: false });
+            const hostname = device?.hostname ? device.hostname.split('.')[0] : ip;
+            const identifier = device ? `${hostname}/${device.serialNumber}` : ip;
+            console.log(`[${timestamp}] [${identifier}] Grid Export HW update: +${hardwareDelta} Wh | HW total: ${hardwareTotal.toFixed(0)} Wh | Integrated: ${integratedTotal.toFixed(0)} Wh | Diff: ${difference.toFixed(0)} Wh`);
+            counters.gridProducedCurrent = newValue;
+          }
         }
       }
     }
     
-    // Accumulate battery and load energy based on power readings
+    // Accumulate energy based on power readings using trapezoidal integration
     if (powerFlowData?.Body?.Data?.Site && counters.lastUpdateTime) {
       const site = powerFlowData.Body.Data.Site;
       const timeDeltaHours = (now.getTime() - counters.lastUpdateTime.getTime()) / (1000 * 60 * 60);
       
-      // Battery accumulation
+      // Solar accumulation (P_PV is always positive or null)
+      if (site.P_PV !== undefined && site.P_PV !== null) {
+        const solarPower = site.P_PV;
+        if (counters.lastSolarPower !== undefined) {
+          const avgPower = (solarPower + counters.lastSolarPower) / 2;
+          counters.solarIntegrated += avgPower * timeDeltaHours;
+        }
+        counters.lastSolarPower = solarPower;
+      }
+      
+      // Grid accumulation (P_Grid: positive = import, negative = export)
+      if (site.P_Grid !== undefined && site.P_Grid !== null) {
+        const gridPower = site.P_Grid;
+        if (counters.lastGridPower !== undefined) {
+          const avgPower = (gridPower + counters.lastGridPower) / 2;
+          if (avgPower > 0) {
+            // Importing from grid
+            counters.gridImportIntegrated += avgPower * timeDeltaHours;
+          } else if (avgPower < 0) {
+            // Exporting to grid
+            counters.gridExportIntegrated += Math.abs(avgPower) * timeDeltaHours;
+          }
+        }
+        counters.lastGridPower = gridPower;
+      }
+      
+      // Battery accumulation (P_Akku: positive = discharge, negative = charge)
       if (site.P_Akku !== undefined && site.P_Akku !== null) {
         const batteryPower = site.P_Akku;
-        // Use trapezoidal rule for more accurate integration
         if (counters.lastBatteryPower !== undefined) {
           const avgPower = (batteryPower + counters.lastBatteryPower) / 2;
           if (avgPower < 0) {
@@ -451,18 +549,10 @@ class DeviceManager extends EventEmitter {
     const counters = this.energyCounters.get(ip);
     if (!counters) return null;
     
-    // Calculate net values (current - initial)
-    const solarGenerated = counters.solarTotalCurrent && counters.solarTotalInitial 
-      ? (counters.solarTotalCurrent - counters.solarTotalInitial) / 1000 // Convert Wh to kWh
-      : 0;
-    
-    const gridConsumed = counters.gridConsumedCurrent && counters.gridConsumedInitial
-      ? (counters.gridConsumedCurrent - counters.gridConsumedInitial) / 1000
-      : 0;
-    
-    const gridProduced = counters.gridProducedCurrent && counters.gridProducedInitial
-      ? (counters.gridProducedCurrent - counters.gridProducedInitial) / 1000
-      : 0;
+    // Use integrated values for all energy reporting
+    const solarGenerated = counters.solarIntegrated / 1000; // Convert Wh to kWh
+    const gridConsumed = counters.gridImportIntegrated / 1000;
+    const gridProduced = counters.gridExportIntegrated / 1000;
     
     // Calculate load using energy balance: Load = Solar + GridIn + BatteryOut - GridOut - BatteryIn
     const loadCalculated = solarGenerated + gridConsumed + (counters.batteryDischarged / 1000) 
