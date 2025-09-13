@@ -11,9 +11,12 @@ A real-time monitoring dashboard for Fronius solar inverters on your local netwo
 - 🔍 **Automatic Discovery** - Automatically discovers Fronius inverters on your local network using ARP scanning
 - 📊 **Real-time Monitoring** - Live updates every 2 seconds via Server-Sent Events (SSE)
 - 📈 **Power Flow Visualization** - 10-minute historical chart showing solar, battery, load, and grid power
+- ⚡ **Energy Tracking** - Dual energy accumulation tracking using hardware counters and power integration
+- 📉 **Energy Counters** - Real-time display of solar generation, battery charge/discharge, grid import/export, and load consumption
 - 🎨 **Modern UI** - Dark theme with responsive design using Tailwind CSS
 - 🔋 **Battery Status** - Real-time battery charge level and charging/discharging status
 - 🌐 **Multi-Inverter Support** - Monitor multiple inverters with automatic master/slave detection
+- 📊 **Energy Delta Reporting** - Server-pushed energy deltas reported to browser console every minute
 
 ## Prerequisites
 
@@ -73,6 +76,8 @@ PORT=3000 npm start
 3. **Master/Slave Detection**: Inverters are classified based on their monitoring capabilities (master monitors load)
 4. **Real-time Updates**: Data is fetched every 2 seconds and pushed to the client via SSE
 5. **Historical Data**: The server maintains a 10-minute rolling buffer of power data for charting
+6. **Energy Tracking**: Dual tracking system using both hardware counters and power integration with trapezoidal rule
+7. **Serial Number Tracking**: Device data and energy counters are tracked by serial number for consistency across reconnections
 
 ## API Endpoints
 
