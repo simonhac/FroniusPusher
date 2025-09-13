@@ -51,7 +51,7 @@ export default function Home() {
       }
       
       console.log('Connecting to SSE...');
-      const eventSource = new EventSource('/api/fronius/sse');
+      const eventSource = new EventSource('/api/sse');
       eventSourceRef.current = eventSource;
 
       eventSource.onopen = () => {
@@ -167,7 +167,7 @@ export default function Home() {
   // Load initial status and history
   useEffect(() => {
     // Load device status
-    fetch('/api/fronius?action=status')
+    fetch('/api/status')
       .then(res => res.json())
       .then(data => {
         if (data.success && data.devices) {
@@ -191,7 +191,7 @@ export default function Home() {
       });
 
     // Load historical data
-    fetch('/api/fronius?action=history')
+    fetch('/api/history')
       .then(res => res.json())
       .then(data => {
         if (data.success && data.history) {
@@ -222,7 +222,13 @@ export default function Home() {
 
   const scanDevices = async () => {
     try {
-      const response = await fetch('/api/fronius?action=scan');
+      const response = await fetch('/api/do', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ action: 'scan' }),
+      });
       const data = await response.json();
       if (data.success) {
         // Scan initiated - updates will come via SSE
@@ -277,7 +283,7 @@ export default function Home() {
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
-                <span>Scan Network</span>
+                <span>Scan</span>
               </>
             )}
           </button>

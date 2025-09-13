@@ -210,7 +210,7 @@ export default function PowerChart({ devices }: PowerChartProps) {
     },
     plugins: {
       legend: {
-        position: 'top' as const,
+        position: 'bottom' as const,
         labels: {
           usePointStyle: true,
           padding: 15,

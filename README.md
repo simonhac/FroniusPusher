@@ -76,10 +76,10 @@ PORT=3000 npm start
 
 ## API Endpoints
 
-- `GET /api/fronius?action=status` - Get current device status
-- `GET /api/fronius?action=scan` - Trigger network scan for inverters
-- `GET /api/fronius?action=history` - Get historical power data
-- `GET /api/fronius/sse` - Server-sent events stream for real-time updates
+- `GET /api/status` - Get current device status
+- `POST /api/do` - Perform actions (e.g., `{"action": "scan"}` to trigger network scan)
+- `GET /api/history` - Get historical power data
+- `GET /api/sse` - Server-sent events stream for real-time updates
 
 ## Technology Stack
 
