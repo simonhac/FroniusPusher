@@ -1,10 +1,10 @@
 import { discoverFroniusInverters } from './fronius-discovery';
 import axios from 'axios';
 import EventEmitter from 'events';
-import { formatLocalDateTime } from './date-utils';
 import { isFaultStatus } from './fronius-status-codes';
 import { Site, InverterDevice } from './site';
 import { EnergyIntegrator, BidirectionalEnergyIntegrator } from './energy-integrator';
+import { FroniusMinutely } from '@/types/fronius';
 
 interface FroniusDevice {
   ip: string;
@@ -31,45 +31,6 @@ interface HistoricalDataPoint {
   soc?: number;
 }
 
-interface FroniusMinutely {
-  timestamp: string;  // Formatted using formatLocalDateTime
-  sequence: string;   // Format: "XXXX/N" where XXXX is 4-digit hex, N is incrementing decimal
-  solarW: number;
-  solarIntervalWh: number;
-  
-  solarLocalW: number;
-  solarLocalIntervalWh: number;
-  
-  solarRemoteW: number;
-  solarRemoteIntervalWh: number;
-  
-  loadW: number;
-  loadIntervalWh: number;
-  
-  batteryW: number;
-  batteryInIntervalWh: number;
-  batteryOutIntervalWh: number;
-  
-  gridW: number;
-  gridInIntervalWh: number;
-  gridOutIntervalWh: number;
-  
-  batterySOC: number | null;
-  
-  faultCode: string | number | null;
-  faultTimestamp: string | null;  // Formatted using formatLocalDateTime
-  
-  generatorStatus: null;  // Fronius doesn't have generator
-  
-  // Total accumulated values in kWh (null for now, can be added later)
-  solarKwhTotal: number | null;
-  loadKwhTotal: number | null;
-  batteryInKwhTotal: number | null;
-  batteryOutKwhTotal: number | null;
-  gridInKwhTotal: number | null;
-  gridOutKwhTotal: number | null;
-}
-
 
 class DeviceManager extends EventEmitter {
   private devices: Map<string, FroniusDevice> = new Map();  // Keyed by serial number
@@ -79,10 +40,7 @@ class DeviceManager extends EventEmitter {
   private isScanning: boolean = false;
   private lastScan: Date | null = null;
   private historicalData: Map<string, HistoricalDataPoint[]> = new Map();  // Keyed by serial number
-  private lastEnergySnapshot: Map<string, any> = new Map();  // Stores Wh values for delta calculation
   private energyDeltaInterval: NodeJS.Timeout | null = null;
-  private sessionId: string = Math.floor(Math.random() * 0x10000).toString(16).padStart(4, '0').toUpperCase();
-  private sequenceNumber: number = 0;
 
   constructor() {
     super();
@@ -173,141 +131,12 @@ class DeviceManager extends EventEmitter {
   }
 
   private reportMinutely() {
-    // Get power values from site
-    const totalSolarPowerW = this.site.getTotalSolarPowerW();
-    const batteryPowerW = this.site.getTotalBatteryPowerW();
-    const gridPowerW = this.site.getTotalGridPowerW();
-    const loadPowerW = this.site.calculateLoadPowerW();
-    const batterySOC = this.site.getBatterySOC();
+    // Delegate to Site to generate FroniusMinutely
+    const froniusMinutely = this.site.generateFroniusMinutely();
     
-    // Separate master/slave solar for reporting
-    let masterPowerW = 0;
-    let slavePowerW = 0;
-    for (const inverter of this.site.getInverters()) {
-      if (inverter.currentPower.solar) {
-        if (inverter.isMaster) {
-          masterPowerW += inverter.currentPower.solar;
-        } else {
-          slavePowerW += inverter.currentPower.solar;
-        }
-      }
-    }
-    
-    // Get energy totals from site
-    const energyTotals = this.site.getEnergyTotals();
-    let totalCurrentWh = {
-      solar: energyTotals.solar * 1000,
-      batteryIn: energyTotals.batteryIn * 1000,
-      batteryOut: energyTotals.batteryOut * 1000,
-      gridIn: energyTotals.gridIn * 1000,
-      gridOut: energyTotals.gridOut * 1000,
-      load: energyTotals.load * 1000
-    };
-    
-    // Check for faults
-    let faultCode: string | number | null = null;
-    let faultTimestamp: Date | null = null;
-    const faults = this.site.getFaults();
-    if (faults.length > 0) {
-      faultCode = faults[0].faultCode;
-      faultTimestamp = faults[0].timestamp || null;
-    }
-    
-    const lastSnapshot = this.lastEnergySnapshot.get('total');
-    
-    if (lastSnapshot) {
-      // Calculate deltas in Wh and round to integers
-      const deltaWh = {
-        solar: Math.round(totalCurrentWh.solar - lastSnapshot.solar),
-        batteryIn: Math.round(totalCurrentWh.batteryIn - lastSnapshot.batteryIn),
-        batteryOut: Math.round(totalCurrentWh.batteryOut - lastSnapshot.batteryOut),
-        gridIn: Math.round(totalCurrentWh.gridIn - lastSnapshot.gridIn),
-        gridOut: Math.round(totalCurrentWh.gridOut - lastSnapshot.gridOut),
-        load: Math.round(totalCurrentWh.load - lastSnapshot.load)
-      };
-      
-      // Advance snapshot by the rounded delta to prevent error accumulation
-      const nextSnapshot = {
-        solar: lastSnapshot.solar + deltaWh.solar,
-        batteryIn: lastSnapshot.batteryIn + deltaWh.batteryIn,
-        batteryOut: lastSnapshot.batteryOut + deltaWh.batteryOut,
-        gridIn: lastSnapshot.gridIn + deltaWh.gridIn,
-        gridOut: lastSnapshot.gridOut + deltaWh.gridOut,
-        load: lastSnapshot.load + deltaWh.load
-      };
-      
-      // Store the advanced snapshot for next time
-      this.lastEnergySnapshot.set('total', nextSnapshot);
-      
-      // Calculate separate master/slave energy deltas
-      const masterSnapshot = this.lastEnergySnapshot.get('master') || { solar: 0 };
-      const slaveSnapshot = this.lastEnergySnapshot.get('slave') || { solar: 0 };
-      
-      // Approximate master/slave split based on current power ratio
-      const totalSolarPowerW = masterPowerW + slavePowerW;
-      let masterSolarIntervalWh = 0;
-      let slaveSolarIntervalWh = 0;
-      
-      if (totalSolarPowerW > 0) {
-        const masterRatio = masterPowerW / totalSolarPowerW;
-        masterSolarIntervalWh = Math.round(deltaWh.solar * masterRatio);
-        slaveSolarIntervalWh = deltaWh.solar - masterSolarIntervalWh;
-      }
-      
-      // Update master/slave snapshots
-      this.lastEnergySnapshot.set('master', { solar: masterSnapshot.solar + masterSolarIntervalWh });
-      this.lastEnergySnapshot.set('slave', { solar: slaveSnapshot.solar + slaveSolarIntervalWh });
-      
-      // Increment sequence number
-      this.sequenceNumber++;
-      
-      // Create FroniusMinutely object
-      const froniusMinutely: FroniusMinutely = {
-        timestamp: formatLocalDateTime(new Date()),
-        sequence: `${this.sessionId}/${this.sequenceNumber}`,
-        solarW: Math.round(totalSolarPowerW),
-        solarIntervalWh: deltaWh.solar,
-        
-        solarLocalW: Math.round(masterPowerW),
-        solarLocalIntervalWh: masterSolarIntervalWh,
-        
-        solarRemoteW: Math.round(slavePowerW),
-        solarRemoteIntervalWh: slaveSolarIntervalWh,
-        
-        loadW: Math.round(loadPowerW),
-        loadIntervalWh: deltaWh.load,
-        
-        batteryW: Math.round(batteryPowerW),
-        batteryInIntervalWh: deltaWh.batteryIn,
-        batteryOutIntervalWh: deltaWh.batteryOut,
-        
-        gridW: Math.round(gridPowerW),
-        gridInIntervalWh: deltaWh.gridIn,
-        gridOutIntervalWh: deltaWh.gridOut,
-        
-        batterySOC: batterySOC !== null ? Math.round(batterySOC * 10) / 10 : null,
-        
-        faultCode: faultCode,
-        faultTimestamp: faultTimestamp ? formatLocalDateTime(faultTimestamp) : null,
-        
-        generatorStatus: null,  // Fronius doesn't have generator
-        
-        // Total accumulated values in kWh (null for now, can be added later)
-        solarKwhTotal: null,
-        loadKwhTotal: null,
-        batteryInKwhTotal: null,
-        batteryOutKwhTotal: null,
-        gridInKwhTotal: null,
-        gridOutKwhTotal: null
-      };
-      
+    if (froniusMinutely) {
       // Emit FroniusMinutely object
       this.emit('froniusMinutely', froniusMinutely);
-    } else {
-      // First snapshot - initialise with current values
-      this.lastEnergySnapshot.set('total', totalCurrentWh);
-      this.lastEnergySnapshot.set('master', { solar: 0 });
-      this.lastEnergySnapshot.set('slave', { solar: 0 });
     }
   }
 
@@ -686,6 +515,10 @@ class DeviceManager extends EventEmitter {
     
     // Return site totals
     return this.site.getEnergyTotals();
+  }
+  
+  public getSite(): Site {
+    return this.site;
   }
 }
 

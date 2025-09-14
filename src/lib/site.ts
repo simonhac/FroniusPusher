@@ -1,4 +1,6 @@
 import { EnergyIntegrator, BidirectionalEnergyIntegrator } from './energy-integrator';
+import { FroniusMinutely } from '@/types/fronius';
+import { formatLocalDateTime } from './date-utils';
 
 export interface InverterDevice {
   serialNumber: string;
@@ -31,9 +33,14 @@ export interface InverterDevice {
 export class Site {
   private name: string;
   private inverters: Map<string, InverterDevice> = new Map();
+  private sessionId: string;
+  private sequenceNumber: number = 0;
+  private lastEnergySnapshot: Map<string, any> = new Map();
+  private froniusMinutelyHistory: FroniusMinutely[] = [];  // Store last 10 reports
   
   constructor(name: string = 'Default Site') {
     this.name = name;
+    this.sessionId = Math.floor(Math.random() * 0x10000).toString(16).padStart(4, '0').toUpperCase();
   }
   
   /**
@@ -269,5 +276,156 @@ export class Site {
     }
     
     return faults;
+  }
+
+  /**
+   * Generate FroniusMinutely report
+   * This should be called once per minute to generate the energy delta report
+   */
+  generateFroniusMinutely(): FroniusMinutely | null {
+    const energyTotals = this.getEnergyTotals();
+    
+    // Convert to Wh for reporting
+    const totalCurrentWh = {
+      solar: energyTotals.solar * 1000,
+      batteryIn: energyTotals.batteryIn * 1000,
+      batteryOut: energyTotals.batteryOut * 1000,
+      gridIn: energyTotals.gridIn * 1000,
+      gridOut: energyTotals.gridOut * 1000,
+      load: energyTotals.load * 1000
+    };
+    
+    const lastSnapshot = this.lastEnergySnapshot.get('total');
+    
+    if (!lastSnapshot) {
+      // First snapshot - initialize
+      this.lastEnergySnapshot.set('total', totalCurrentWh);
+      this.lastEnergySnapshot.set('master', { solar: 0 });
+      this.lastEnergySnapshot.set('slave', { solar: 0 });
+      return null;
+    }
+    
+    // Calculate deltas in Wh and round to integers
+    const deltaWh = {
+      solar: Math.round(totalCurrentWh.solar - lastSnapshot.solar),
+      batteryIn: Math.round(totalCurrentWh.batteryIn - lastSnapshot.batteryIn),
+      batteryOut: Math.round(totalCurrentWh.batteryOut - lastSnapshot.batteryOut),
+      gridIn: Math.round(totalCurrentWh.gridIn - lastSnapshot.gridIn),
+      gridOut: Math.round(totalCurrentWh.gridOut - lastSnapshot.gridOut),
+      load: Math.round(totalCurrentWh.load - lastSnapshot.load)
+    };
+    
+    // Advance snapshot by the rounded delta to prevent error accumulation
+    const nextSnapshot = {
+      solar: lastSnapshot.solar + deltaWh.solar,
+      batteryIn: lastSnapshot.batteryIn + deltaWh.batteryIn,
+      batteryOut: lastSnapshot.batteryOut + deltaWh.batteryOut,
+      gridIn: lastSnapshot.gridIn + deltaWh.gridIn,
+      gridOut: lastSnapshot.gridOut + deltaWh.gridOut,
+      load: lastSnapshot.load + deltaWh.load
+    };
+    
+    // Store the advanced snapshot for next time
+    this.lastEnergySnapshot.set('total', nextSnapshot);
+    
+    // Calculate separate master/slave energy deltas
+    let masterPowerW = 0;
+    let slavePowerW = 0;
+    
+    for (const inverter of this.inverters.values()) {
+      if (inverter.currentPower.solar) {
+        if (inverter.isMaster) {
+          masterPowerW += inverter.currentPower.solar;
+        } else {
+          slavePowerW += inverter.currentPower.solar;
+        }
+      }
+    }
+    
+    const masterSnapshot = this.lastEnergySnapshot.get('master') || { solar: 0 };
+    const slaveSnapshot = this.lastEnergySnapshot.get('slave') || { solar: 0 };
+    
+    // Approximate master/slave split based on current power ratio
+    const totalSolarPowerW = masterPowerW + slavePowerW;
+    let masterSolarIntervalWh = 0;
+    let slaveSolarIntervalWh = 0;
+    
+    if (totalSolarPowerW > 0 && deltaWh.solar > 0) {
+      const masterRatio = masterPowerW / totalSolarPowerW;
+      masterSolarIntervalWh = Math.round(deltaWh.solar * masterRatio);
+      slaveSolarIntervalWh = deltaWh.solar - masterSolarIntervalWh;
+    }
+    
+    // Update master/slave snapshots
+    this.lastEnergySnapshot.set('master', { solar: masterSnapshot.solar + masterSolarIntervalWh });
+    this.lastEnergySnapshot.set('slave', { solar: slaveSnapshot.solar + slaveSolarIntervalWh });
+    
+    // Increment sequence number
+    this.sequenceNumber++;
+    
+    // Get fault information
+    const faults = this.getFaults();
+    let faultCode: string | number | null = null;
+    let faultTimestamp: string | null = null;
+    
+    if (faults.length > 0) {
+      faultCode = faults[0].faultCode;
+      faultTimestamp = faults[0].timestamp ? formatLocalDateTime(faults[0].timestamp) : null;
+    }
+    
+    // Create FroniusMinutely object
+    const froniusMinutely: FroniusMinutely = {
+      timestamp: formatLocalDateTime(new Date()),
+      sequence: `${this.sessionId}/${this.sequenceNumber}`,
+      solarW: Math.round(totalSolarPowerW),
+      solarIntervalWh: deltaWh.solar,
+      
+      solarLocalW: Math.round(masterPowerW),
+      solarLocalIntervalWh: masterSolarIntervalWh,
+      
+      solarRemoteW: Math.round(slavePowerW),
+      solarRemoteIntervalWh: slaveSolarIntervalWh,
+      
+      loadW: Math.round(this.calculateLoadPowerW() || 0),
+      loadIntervalWh: deltaWh.load,
+      
+      batteryW: Math.round(this.getTotalBatteryPowerW()),
+      batteryInIntervalWh: deltaWh.batteryIn,
+      batteryOutIntervalWh: deltaWh.batteryOut,
+      
+      gridW: Math.round(this.getTotalGridPowerW()),
+      gridInIntervalWh: deltaWh.gridIn,
+      gridOutIntervalWh: deltaWh.gridOut,
+      
+      batterySOC: this.getBatterySOC() !== null ? Math.round(this.getBatterySOC()! * 10) / 10 : null,
+      
+      faultCode: faultCode,
+      faultTimestamp: faultTimestamp,
+      
+      generatorStatus: null,  // Fronius doesn't have generator
+      
+      // Total accumulated values in kWh (null for now, can be added later)
+      solarKwhTotal: null,
+      loadKwhTotal: null,
+      batteryInKwhTotal: null,
+      batteryOutKwhTotal: null,
+      gridInKwhTotal: null,
+      gridOutKwhTotal: null
+    };
+    
+    // Store in history (keep last 10)
+    this.froniusMinutelyHistory.push(froniusMinutely);
+    if (this.froniusMinutelyHistory.length > 10) {
+      this.froniusMinutelyHistory.shift();
+    }
+    
+    return froniusMinutely;
+  }
+  
+  /**
+   * Get the history of FroniusMinutely reports
+   */
+  getFroniusMinutelyHistory(): FroniusMinutely[] {
+    return [...this.froniusMinutelyHistory];
   }
 }

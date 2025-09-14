@@ -1,6 +1,8 @@
 import { NextRequest } from 'next/server';
 import { getDeviceManager } from '@/lib/device-manager';
 
+export const runtime = 'nodejs';
+
 export async function GET(request: NextRequest) {
   const encoder = new TextEncoder();
   let intervalId: NodeJS.Timeout;

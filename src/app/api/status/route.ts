@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDeviceManager } from '@/lib/device-manager';
 import { formatDateValue } from '@/lib/date-utils';
 
+export const runtime = 'nodejs';
+
 export async function GET(request: NextRequest) {
   try {
     const deviceManager = getDeviceManager();

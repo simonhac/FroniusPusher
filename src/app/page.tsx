@@ -13,6 +13,8 @@ import {
   Star,
   Circle
 } from 'lucide-react';
+import { FroniusMinutely } from '@/types/fronius';
+import FroniusMinutelyDisplay from '@/components/FroniusMinutelyDisplay';
 
 const PowerChart = dynamic(() => import('@/components/PowerChart'), { 
   ssr: false,
@@ -67,6 +69,7 @@ interface SiteInfo {
 export default function Home() {
   const [devices, setDevices] = useState<FroniusDevice[]>([]);
   const [siteInfo, setSiteInfo] = useState<SiteInfo | null>(null);
+  const [froniusMinutelyHistory, setFroniusMinutelyHistory] = useState<FroniusMinutely[]>([]);
   const [selectedDevice, setSelectedDevice] = useState<FroniusDevice | null>(null);
   const [loading, setLoading] = useState(false);
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
@@ -79,6 +82,18 @@ export default function Home() {
   const [energyCounters, setEnergyCounters] = useState<Map<string, any>>(new Map());
 
   // Initialise SSE connection
+  // Fetch initial FroniusMinutely history on page load
+  useEffect(() => {
+    fetch('/api/pushes')
+      .then(res => res.json())
+      .then(result => {
+        if (result.success && result.data) {
+          setFroniusMinutelyHistory(result.data);
+        }
+      })
+      .catch(err => console.error('Failed to fetch FroniusMinutely history:', err));
+  }, []);
+
   useEffect(() => {
     const connectSSE = () => {
       // Close any existing connection
@@ -136,10 +151,14 @@ export default function Home() {
 
       // Handle FroniusMinutely updates (once per minute)
       eventSource.addEventListener('froniusMinutely', (event) => {
-        const data = JSON.parse(event.data);
+        const data = JSON.parse(event.data) as FroniusMinutely;
         const timestamp = new Date(data.timestamp).toLocaleTimeString();
         
         console.log(`[${timestamp}] FroniusMinutely:`, data);
+        setFroniusMinutelyHistory(prev => {
+          const newHistory = [data, ...prev].slice(0, 10); // Keep only last 10
+          return newHistory;
+        });
       });
       
       // Handle site updates
@@ -378,7 +397,7 @@ export default function Home() {
                   <span className="text-2xl font-bold text-yellow-400">
                     {siteInfo.powerW.solar !== null 
                       ? <>{(siteInfo.powerW.solar / 1000).toFixed(1)}<span className="text-sm font-normal ml-1">kW</span></>
-                      : 'N/A'
+                      : '—'
                     }
                   </span>
                 </div>
@@ -417,7 +436,7 @@ export default function Home() {
                   <span className="text-2xl font-bold text-orange-400">
                     {siteInfo.powerW.load !== null 
                       ? <>{(siteInfo.powerW.load / 1000).toFixed(1)}<span className="text-sm font-normal ml-1">kW</span></>
-                      : 'N/A'
+                      : '—'
                     }
                   </span>
                 </div>
@@ -440,6 +459,9 @@ export default function Home() {
                 </div>
               )}
             </div>
+            
+            {/* FroniusMinutely Display */}
+            <FroniusMinutelyDisplay history={froniusMinutelyHistory} />
           </div>
         </div>
       )}
