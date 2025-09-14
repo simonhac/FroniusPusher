@@ -19,6 +19,12 @@ export async function GET(request: NextRequest) {
         encoder.encode(`event: devices\ndata: ${JSON.stringify(devices)}\n\n`)
       );
       
+      // Send site info immediately
+      const siteInfo = deviceManager.getSiteInfo();
+      controller.enqueue(
+        encoder.encode(`event: siteUpdate\ndata: ${JSON.stringify(siteInfo)}\n\n`)
+      );
+      
       // Listen for device updates
       const handleDevicesUpdated = (updatedDevices: any[]) => {
         if (isConnected) {
@@ -31,14 +37,20 @@ export async function GET(request: NextRequest) {
       // Listen for individual device data updates
       const handleDeviceDataUpdated = (update: any) => {
         if (isConnected) {
-          // Include energy counters with the update (use serialNumber if available, fallback to ip)
-          const energyCounters = deviceManager.getFormattedEnergyCounters(update.serialNumber || update.ip);
+          // Include energy counters with the update
+          const energyCounters = deviceManager.getFormattedEnergyCounters(update.serialNumber);
           const updateWithEnergy = {
             ...update,
             energyCounters
           };
           controller.enqueue(
             encoder.encode(`event: deviceData\ndata: ${JSON.stringify(updateWithEnergy)}\n\n`)
+          );
+          
+          // Also send updated site info
+          const siteInfo = deviceManager.getSiteInfo();
+          controller.enqueue(
+            encoder.encode(`event: siteUpdate\ndata: ${JSON.stringify(siteInfo)}\n\n`)
           );
         }
       };
