@@ -31,8 +31,8 @@ export async function GET(request: NextRequest) {
       // Listen for individual device data updates
       const handleDeviceDataUpdated = (update: any) => {
         if (isConnected) {
-          // Include energy counters with the update
-          const energyCounters = deviceManager.getFormattedEnergyCounters(update.ip);
+          // Include energy counters with the update (use serialNumber if available, fallback to ip)
+          const energyCounters = deviceManager.getFormattedEnergyCounters(update.serialNumber || update.ip);
           const updateWithEnergy = {
             ...update,
             energyCounters
@@ -52,11 +52,11 @@ export async function GET(request: NextRequest) {
         }
       };
       
-      // Listen for energy delta updates (once per minute)
-      const handleEnergyDeltas = (data: any) => {
+      // Listen for FroniusMinutely updates (once per minute)
+      const handleFroniusMinutely = (data: any) => {
         if (isConnected) {
           controller.enqueue(
-            encoder.encode(`event: energyDeltas\ndata: ${JSON.stringify(data)}\n\n`)
+            encoder.encode(`event: froniusMinutely\ndata: ${JSON.stringify(data)}\n\n`)
           );
         }
       };
@@ -65,7 +65,7 @@ export async function GET(request: NextRequest) {
       deviceManager.on('devicesUpdated', handleDevicesUpdated);
       deviceManager.on('deviceDataUpdated', handleDeviceDataUpdated);
       deviceManager.on('scanStatus', handleScanStatus);
-      deviceManager.on('energyDeltas', handleEnergyDeltas);
+      deviceManager.on('froniusMinutely', handleFroniusMinutely);
       
       // Keep connection alive with heartbeat
       intervalId = setInterval(() => {
@@ -81,7 +81,7 @@ export async function GET(request: NextRequest) {
         deviceManager.removeListener('devicesUpdated', handleDevicesUpdated);
         deviceManager.removeListener('deviceDataUpdated', handleDeviceDataUpdated);
         deviceManager.removeListener('scanStatus', handleScanStatus);
-        deviceManager.removeListener('energyDeltas', handleEnergyDeltas);
+        deviceManager.removeListener('froniusMinutely', handleFroniusMinutely);
         controller.close();
       });
     },

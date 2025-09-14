@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
     // Get energy counters for all devices
     const energyCounters: any = {};
     for (const device of status.devices) {
-      const counters = deviceManager.getFormattedEnergyCounters(device.ip);
+      const counters = deviceManager.getFormattedEnergyCounters(device.serialNumber);
       if (counters) {
         // Use serial number as key
         energyCounters[device.serialNumber] = counters;

@@ -1,6 +1,8 @@
 import { discoverFroniusInverters } from './fronius-discovery';
 import axios from 'axios';
 import EventEmitter from 'events';
+import { formatLocalDateTime } from './date-utils';
+import { isFaultStatus } from './fronius-status-codes';
 
 interface FroniusDevice {
   ip: string;
@@ -25,6 +27,45 @@ interface HistoricalDataPoint {
   grid?: number;
   load?: number;
   soc?: number;
+}
+
+interface FroniusMinutely {
+  timestamp: string;  // Formatted using formatLocalDateTime
+  sequence: string;   // Format: "XXXX/N" where XXXX is 4-digit hex, N is incrementing decimal
+  solarW: number;
+  solarIntervalWh: number;
+  
+  solarLocalW: number;
+  solarLocalIntervalWh: number;
+  
+  solarRemoteW: number;
+  solarRemoteIntervalWh: number;
+  
+  loadW: number;
+  loadIntervalWh: number;
+  
+  batteryW: number;
+  batteryInIntervalWh: number;
+  batteryOutIntervalWh: number;
+  
+  gridW: number;
+  gridInIntervalWh: number;
+  gridOutIntervalWh: number;
+  
+  batterySOC: number | null;
+  
+  faultCode: string | number | null;
+  faultTimestamp: string | null;  // Formatted using formatLocalDateTime
+  
+  generatorStatus: null;  // Fronius doesn't have generator
+  
+  // Total accumulated values in kWh (null for now, can be added later)
+  solarKwhTotal: number | null;
+  loadKwhTotal: number | null;
+  batteryInKwhTotal: number | null;
+  batteryOutKwhTotal: number | null;
+  gridInKwhTotal: number | null;
+  gridOutKwhTotal: number | null;
 }
 
 interface EnergyCounters {
@@ -57,20 +98,22 @@ interface EnergyCounters {
 }
 
 class DeviceManager extends EventEmitter {
-  private devices: Map<string, FroniusDevice> = new Map();
+  private devices: Map<string, FroniusDevice> = new Map();  // Keyed by serial number
   private pollingInterval: NodeJS.Timeout | null = null;
   private isScanning: boolean = false;
   private lastScan: Date | null = null;
-  private historicalData: Map<string, HistoricalDataPoint[]> = new Map();
-  private energyCounters: Map<string, EnergyCounters> = new Map();
+  private historicalData: Map<string, HistoricalDataPoint[]> = new Map();  // Keyed by serial number
+  private energyCounters: Map<string, EnergyCounters> = new Map();  // Keyed by serial number
   private lastEnergySnapshot: Map<string, any> = new Map();  // Stores Wh values for delta calculation
   private energyDeltaInterval: NodeJS.Timeout | null = null;
+  private sessionId: string = Math.floor(Math.random() * 0x10000).toString(16).padStart(4, '0').toUpperCase();
+  private sequenceNumber: number = 0;
 
   constructor() {
     super();
     // Log server startup info
     console.log('================================================');
-    console.log('Fronius Device Manager initialized');
+    console.log('Fronius Device Manager initialised');
     console.log(`Server running on port: ${process.env.PORT || 8080}`);
     console.log('================================================');
     
@@ -122,7 +165,7 @@ class DeviceManager extends EventEmitter {
       
       // If we're at or past 5 seconds, run immediately and schedule for next minute
       if (currentSeconds >= 5) {
-        this.reportEnergyDeltas();
+        this.reportMinutely();
         
         // Calculate delay until 5 seconds past the next minute
         const nextMinute = new Date(now);
@@ -151,7 +194,7 @@ class DeviceManager extends EventEmitter {
     scheduleNextReport();
   }
 
-  private reportEnergyDeltas() {
+  private reportMinutely() {
     // Aggregate totals across all devices
     let masterPowerW = 0;
     let slavePowerW = 0;
@@ -172,9 +215,9 @@ class DeviceManager extends EventEmitter {
     };
     
     // Collect current values from all devices
-    for (const [ip, device] of this.devices.entries()) {
-      const currentCounters = this.getFormattedEnergyCounters(ip);
-      const energyCounter = this.energyCounters.get(ip);
+    for (const [serialNumber, device] of this.devices.entries()) {
+      const currentCounters = this.getFormattedEnergyCounters(serialNumber);
+      const energyCounter = this.energyCounters.get(serialNumber);
       
       if (currentCounters) {
         // Convert current values from kWh to Wh and add to totals
@@ -229,10 +272,10 @@ class DeviceManager extends EventEmitter {
         faultTimestamp = energyCounter.faultTimestamp || null;
       }
       
-      // Check inverter status code
-      if (device.info?.StatusCode && device.info.StatusCode !== 7) {
-        // StatusCode 7 is normal operation
-        faultCode = `INVERTER_STATUS_${device.info.StatusCode}`;
+      // Check inverter status code using the status codes structure
+      if (device.info?.StatusCode !== undefined && isFaultStatus(device.info.StatusCode)) {
+        // Record the status code as a fault
+        faultCode = device.info.StatusCode;
         faultTimestamp = new Date();
       }
     }
@@ -282,33 +325,37 @@ class DeviceManager extends EventEmitter {
       this.lastEnergySnapshot.set('master', { solar: masterSnapshot.solar + masterSolarIntervalWh });
       this.lastEnergySnapshot.set('slave', { solar: slaveSnapshot.solar + slaveSolarIntervalWh });
       
-      // Emit energy deltas in the new format
-      this.emit('energyDeltas', {
-        timestamp: new Date(),
-        solarW: masterPowerW + slavePowerW,
+      // Increment sequence number
+      this.sequenceNumber++;
+      
+      // Create FroniusMinutely object
+      const froniusMinutely: FroniusMinutely = {
+        timestamp: formatLocalDateTime(new Date()),
+        sequence: `${this.sessionId}/${this.sequenceNumber}`,
+        solarW: Math.round(masterPowerW + slavePowerW),
         solarIntervalWh: deltaWh.solar,
         
-        solarLocalW: masterPowerW,
+        solarLocalW: Math.round(masterPowerW),
         solarLocalIntervalWh: masterSolarIntervalWh,
         
-        solarRemoteW: slavePowerW,
+        solarRemoteW: Math.round(slavePowerW),
         solarRemoteIntervalWh: slaveSolarIntervalWh,
         
-        loadW: loadPowerW,
+        loadW: Math.round(loadPowerW),
         loadIntervalWh: deltaWh.load,
         
-        batteryW: batteryPowerW,
+        batteryW: Math.round(batteryPowerW),
         batteryInIntervalWh: deltaWh.batteryIn,
         batteryOutIntervalWh: deltaWh.batteryOut,
         
-        gridW: gridPowerW,
+        gridW: Math.round(gridPowerW),
         gridInIntervalWh: deltaWh.gridIn,
         gridOutIntervalWh: deltaWh.gridOut,
         
-        batterySOC: batterySOC,
+        batterySOC: batterySOC !== null ? Math.round(batterySOC * 10) / 10 : null,
         
         faultCode: faultCode,
-        faultTimestamp: faultTimestamp,
+        faultTimestamp: faultTimestamp ? formatLocalDateTime(faultTimestamp) : null,
         
         generatorStatus: null,  // Fronius doesn't have generator
         
@@ -319,9 +366,12 @@ class DeviceManager extends EventEmitter {
         batteryOutKwhTotal: null,
         gridInKwhTotal: null,
         gridOutKwhTotal: null
-      });
+      };
+      
+      // Emit FroniusMinutely object
+      this.emit('froniusMinutely', froniusMinutely);
     } else {
-      // First snapshot - initialize with current values
+      // First snapshot - initialise with current values
       this.lastEnergySnapshot.set('total', totalCurrentWh);
       this.lastEnergySnapshot.set('master', { solar: 0 });
       this.lastEnergySnapshot.set('slave', { solar: 0 });
@@ -363,14 +413,14 @@ class DeviceManager extends EventEmitter {
           lastDataFetch: existingDevice?.lastDataFetch
         };
         
-        this.devices.set(device.ip, updatedDevice);
+        this.devices.set(device.serialNumber, updatedDevice);
       }
 
       // Remove devices that are no longer discovered
-      const discoveredIPs = new Set(discoveredDevices.map(d => d.ip));
-      for (const [ip, device] of this.devices.entries()) {
-        if (!discoveredIPs.has(ip)) {
-          this.devices.delete(ip);
+      const discoveredSerials = new Set(discoveredDevices.map(d => d.serialNumber));
+      for (const [serialNumber, device] of this.devices.entries()) {
+        if (!discoveredSerials.has(serialNumber)) {
+          this.devices.delete(serialNumber);
         }
       }
 
@@ -404,8 +454,8 @@ class DeviceManager extends EventEmitter {
     const startTime = Date.now();
     const updatePromises: Promise<void>[] = [];
     
-    for (const [ip, device] of this.devices.entries()) {
-      updatePromises.push(this.updateDeviceData(ip));
+    for (const [serialNumber, device] of this.devices.entries()) {
+      updatePromises.push(this.updateDeviceData(device.ip));
     }
     
     await Promise.all(updatePromises);
@@ -415,8 +465,17 @@ class DeviceManager extends EventEmitter {
 
   private async updateDeviceData(ip: string): Promise<void> {
     try {
-      const device = this.devices.get(ip);
-      if (!device) return;
+      // Find device by IP
+      let device: FroniusDevice | undefined;
+      let deviceSerialNumber: string | undefined;
+      for (const [serialNumber, d] of this.devices.entries()) {
+        if (d.ip === ip) {
+          device = d;
+          deviceSerialNumber = serialNumber;
+          break;
+        }
+      }
+      if (!device || !deviceSerialNumber) return;
 
       // Fetch multiple endpoints in parallel for energy data
       const [powerFlowResponse, inverterResponse, meterResponse] = await Promise.allSettled([
@@ -428,7 +487,7 @@ class DeviceManager extends EventEmitter {
       if (powerFlowResponse.status === 'fulfilled' && powerFlowResponse.value.data) {
         device.data = powerFlowResponse.value.data;
         device.lastDataFetch = new Date();
-        this.devices.set(ip, device);
+        this.devices.set(device.serialNumber, device);
         
         // Store historical data
         if (powerFlowResponse.value.data?.Body?.Data?.Site) {
@@ -445,8 +504,8 @@ class DeviceManager extends EventEmitter {
             soc: firstInverter?.SOC ?? undefined
           };
           
-          // Get or create history array for this device
-          const history = this.historicalData.get(ip) || [];
+          // Get or create history array for this device (by serial number)
+          const history = this.historicalData.get(device.serialNumber) || [];
           history.push(dataPoint);
           
           // Keep only last 10 minutes of data (300 samples at 2-second polling interval)
@@ -454,7 +513,7 @@ class DeviceManager extends EventEmitter {
             history.shift();
           }
           
-          this.historicalData.set(ip, history);
+          this.historicalData.set(device.serialNumber, history);
         }
         
         // Update energy counters
@@ -465,23 +524,33 @@ class DeviceManager extends EventEmitter {
         // Emit update for this specific device
         this.emit('deviceDataUpdated', {
           ip,
+          serialNumber: deviceSerialNumber,
           data: powerFlowResponse.value.data,
           timestamp: new Date()
         });
       }
       
       // Clear fault code if everything is successful
-      const existingCounters = this.energyCounters.get(ip);
+      const existingCounters = this.energyCounters.get(device.serialNumber);
       if (existingCounters) {
         delete existingCounters.faultCode;
         delete existingCounters.faultTimestamp;
-        this.energyCounters.set(ip, existingCounters);
+        this.energyCounters.set(device.serialNumber, existingCounters);
       }
     } catch (error) {
       console.error(`Error fetching data for ${ip}:`, error);
       
+      // Find device by IP to get serial number
+      let serialNumber = ip;  // Fallback to IP if device not found
+      for (const [sn, d] of this.devices.entries()) {
+        if (d.ip === ip) {
+          serialNumber = sn;
+          break;
+        }
+      }
+      
       // Track error in energy counters
-      const counters = this.energyCounters.get(ip) || {
+      const counters = this.energyCounters.get(serialNumber) || {
         solarIntegrated: 0,
         gridImportIntegrated: 0,
         gridExportIntegrated: 0,
@@ -507,16 +576,27 @@ class DeviceManager extends EventEmitter {
       }
       
       counters.faultTimestamp = new Date();
-      this.energyCounters.set(ip, counters);
+      this.energyCounters.set(serialNumber, counters);
     }
   }
 
   private updateEnergyCounters(ip: string, powerFlowData: any, inverterData: any, meterData: any): void {
-    let counters = this.energyCounters.get(ip);
-    const now = new Date();
-    const device = this.devices.get(ip);
+    // Find device by IP to get serial number
+    let device: FroniusDevice | undefined;
+    let serialNumber: string | undefined;
+    for (const [sn, d] of this.devices.entries()) {
+      if (d.ip === ip) {
+        device = d;
+        serialNumber = sn;
+        break;
+      }
+    }
+    if (!device || !serialNumber) return;  // No device found
     
-    // Initialize counters if not exist
+    let counters = this.energyCounters.get(serialNumber);
+    const now = new Date();
+    
+    // Initialise counters if not exist
     if (!counters) {
       counters = {
         solarIntegrated: 0,
@@ -533,7 +613,7 @@ class DeviceManager extends EventEmitter {
         const hostname = device?.hostname ? device.hostname.split('.')[0] : ip;
         const identifier = device ? `${hostname}/${device.serialNumber}` : ip;
         const formattedValue = Math.round(counters.solarTotalInitial!).toLocaleString();
-        console.log(`[${identifier}] Initialized solar counter: ${formattedValue} Wh`);
+        console.log(`[${identifier}] Initialised solar counter: ${formattedValue} Wh`);
       }
       
       if (meterData?.Body?.Data?.['0']) {
@@ -548,7 +628,7 @@ class DeviceManager extends EventEmitter {
         }
       }
       
-      this.energyCounters.set(ip, counters);
+      this.energyCounters.set(serialNumber, counters);
     } else {
       // Check for hardware counter changes and compare with integrated values
       if (inverterData?.Body?.Data?.TOTAL_ENERGY?.Values?.['1'] !== undefined) {
@@ -562,7 +642,7 @@ class DeviceManager extends EventEmitter {
           const timestamp = new Date().toLocaleTimeString('en-GB', { hour12: false });
           const hostname = device?.hostname ? device.hostname.split('.')[0] : ip;
           const identifier = device ? `${hostname}/${device.serialNumber}` : ip;
-          console.log(`[${timestamp}] [${identifier}] Solar HW update: +${hardwareDelta} Wh | HW total: ${hardwareTotal.toFixed(0)} Wh | Integrated: ${integratedTotal.toFixed(0)} Wh | Diff: ${difference.toFixed(0)} Wh (${diffPercent.toFixed(1)}%)`);
+          console.log(`[${timestamp}] [${identifier}] Solar HW update: +${Math.round(hardwareDelta)} Wh | HW total: ${hardwareTotal.toFixed(0)} Wh | Integrated: ${integratedTotal.toFixed(0)} Wh | Diff: ${difference.toFixed(0)} Wh (${diffPercent.toFixed(1)}%)`);
           counters.solarTotalCurrent = newValue;
         }
       }
@@ -653,20 +733,26 @@ class DeviceManager extends EventEmitter {
     }
     
     counters.lastUpdateTime = now;
-    this.energyCounters.set(ip, counters);
+    this.energyCounters.set(serialNumber, counters);
   }
 
   public getDevices(): FroniusDevice[] {
     return Array.from(this.devices.values());
   }
 
-  public getDevice(ip: string): FroniusDevice | undefined {
-    return this.devices.get(ip);
+  public getDevice(serialNumber: string): FroniusDevice | undefined {
+    return this.devices.get(serialNumber);
   }
 
   public async fetchDeviceData(ip: string): Promise<any> {
     await this.updateDeviceData(ip);
-    return this.devices.get(ip)?.data;
+    // Find device by IP
+    for (const [serialNumber, device] of this.devices.entries()) {
+      if (device.ip === ip) {
+        return device.data;
+      }
+    }
+    return undefined;
   }
 
   public getStatus() {
@@ -678,22 +764,22 @@ class DeviceManager extends EventEmitter {
     };
   }
 
-  public getHistory(ip?: string): Map<string, HistoricalDataPoint[]> | HistoricalDataPoint[] | null {
-    if (ip) {
-      return this.historicalData.get(ip) || null;
+  public getHistory(serialNumber?: string): Map<string, HistoricalDataPoint[]> | HistoricalDataPoint[] | null {
+    if (serialNumber) {
+      return this.historicalData.get(serialNumber) || null;
     }
     return this.historicalData;
   }
 
-  public getEnergyCounters(ip?: string): Map<string, EnergyCounters> | EnergyCounters | null {
-    if (ip) {
-      return this.energyCounters.get(ip) || null;
+  public getEnergyCounters(serialNumber?: string): Map<string, EnergyCounters> | EnergyCounters | null {
+    if (serialNumber) {
+      return this.energyCounters.get(serialNumber) || null;
     }
     return this.energyCounters;
   }
 
-  public getFormattedEnergyCounters(ip: string): any {
-    const counters = this.energyCounters.get(ip);
+  public getFormattedEnergyCounters(serialNumber: string): any {
+    const counters = this.energyCounters.get(serialNumber);
     if (!counters) return null;
     
     // Use integrated values for all energy reporting

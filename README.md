@@ -10,7 +10,7 @@ A real-time monitoring dashboard for Fronius solar inverters on your local netwo
 
 - 🔍 **Automatic Discovery** - Automatically discovers Fronius inverters on your local network using ARP scanning
 - 📊 **Real-time Monitoring** - Live updates every 2 seconds via Server-Sent Events (SSE)
-- 📈 **Power Flow Visualization** - 10-minute historical chart showing solar, battery, load, and grid power
+- 📈 **Power Flow Visualisation** - 10-minute historical chart showing solar, battery, load, and grid power
 - ⚡ **Energy Tracking** - Dual energy accumulation tracking using hardware counters and power integration
 - 📉 **Energy Counters** - Real-time display of solar generation, battery charge/discharge, grid import/export, and load consumption
 - 🎨 **Modern UI** - Dark theme with responsive design using Tailwind CSS
@@ -132,4 +132,4 @@ Simon Holmes à Court
 
 - Fronius for their Solar API documentation
 - The Next.js team for an excellent framework
-- Chart.js contributors for the visualization library
+- Chart.js contributors for the visualisation library

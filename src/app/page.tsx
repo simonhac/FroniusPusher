@@ -42,11 +42,11 @@ export default function Home() {
   const eventSourceRef = useRef<EventSource | null>(null);
   const [, forceUpdate] = useState({});
   const [historicalData, setHistoricalData] = useState<Map<string, any[]>>(new Map());
-  const [isScanning, setIsScanning] = useState(false);
+  const [isScanning, setIsScanning] = useState<boolean | null>(null);
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
   const [energyCounters, setEnergyCounters] = useState<Map<string, any>>(new Map());
 
-  // Initialize SSE connection
+  // Initialise SSE connection
   useEffect(() => {
     const connectSSE = () => {
       // Close any existing connection
@@ -102,12 +102,12 @@ export default function Home() {
         }
       });
 
-      // Handle energy delta updates (once per minute)
-      eventSource.addEventListener('energyDeltas', (event) => {
+      // Handle FroniusMinutely updates (once per minute)
+      eventSource.addEventListener('froniusMinutely', (event) => {
         const data = JSON.parse(event.data);
         const timestamp = new Date(data.timestamp).toLocaleTimeString();
         
-        console.log(`[${timestamp}] Energy Delta (Wh):`, data.delta);
+        console.log(`[${timestamp}] FroniusMinutely:`, data);
       });
 
       // Handle individual device data updates
@@ -128,11 +128,12 @@ export default function Home() {
           setSelectedDevice(prev => prev ? { ...prev, data: update.data, lastDataFetch: update.timestamp } : null);
         }
         
-        // Store energy counters
+        // Store energy counters (use serialNumber if available, fallback to ip)
         if (update.energyCounters) {
           setEnergyCounters(prev => {
             const newMap = new Map(prev);
-            newMap.set(update.ip, update.energyCounters);
+            const key = update.serialNumber || update.ip;
+            newMap.set(key, update.energyCounters);
             return newMap;
           });
         }
@@ -188,18 +189,30 @@ export default function Home() {
     fetch('/api/status')
       .then(res => res.json())
       .then(data => {
-        if (data.success && data.devices) {
-          setDevices(data.devices);
+        if (data.success) {
+          if (data.devices) {
+            setDevices(data.devices);
+          }
+          
+          // Set scanning status from API
+          if (data.isScanning !== undefined) {
+            setIsScanning(data.isScanning);
+          }
+          
           setInitialLoadComplete(true);
+          
           if (data.lastScan) {
             setLastUpdate(new Date(data.lastScan));
           }
+          
           // Auto-select first master device or first device
-          const master = data.devices.find((d: FroniusDevice) => d.isMaster);
-          if (master) {
-            setSelectedDevice(master);
-          } else if (data.devices.length > 0) {
-            setSelectedDevice(data.devices[0]);
+          if (data.devices && data.devices.length > 0) {
+            const master = data.devices.find((d: FroniusDevice) => d.isMaster);
+            if (master) {
+              setSelectedDevice(master);
+            } else {
+              setSelectedDevice(data.devices[0]);
+            }
           }
         }
       })
@@ -281,12 +294,13 @@ export default function Home() {
           <div className="flex items-center space-x-4">
             <h1 className="text-3xl font-bold text-white">Fronius Pusher</h1>
           </div>
-          <button
-            onClick={scanDevices}
-            disabled={isScanning}
-            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-600 transition flex items-center space-x-2"
-          >
-            {isScanning ? (
+          {isScanning !== null && (
+            <button
+              onClick={scanDevices}
+              disabled={isScanning}
+              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-600 transition flex items-center space-x-2"
+            >
+              {isScanning ? (
               <>
                 <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
@@ -302,7 +316,8 @@ export default function Home() {
                 <span>Scan</span>
               </>
             )}
-          </button>
+            </button>
+          )}
         </div>
       </div>
 
@@ -362,7 +377,20 @@ export default function Home() {
                     {/* Tooltip */}
                     <div className="absolute invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-all duration-1000 bg-gray-800 text-white p-3 rounded-lg shadow-xl z-50 left-0 top-8 min-w-max">
                       <div className="text-sm space-y-1">
-                        {device.hostname && <p>Hostname: {device.hostname}</p>}
+                        {device.hostname && (
+                          <p>
+                            Hostname:{' '}
+                            <a 
+                              href={`http://${device.hostname}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-400 hover:text-blue-300 underline"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              {device.hostname}
+                            </a>
+                          </p>
+                        )}
                         <p>IP: {device.ip}</p>
                         <p>MAC: {device.mac}</p>
                       </div>
@@ -499,11 +527,11 @@ export default function Home() {
       {devices.length > 0 && energyCounters.size > 0 && (
         <EnergyTable 
           devices={devices
-            .filter(device => energyCounters.has(device.ip))
+            .filter(device => energyCounters.has(device.serialNumber))
             .map(device => ({
               ip: device.ip,
               name: device.info?.CustomName || device.hostname?.split('.')[0] || device.ip,
-              energyCounters: energyCounters.get(device.ip)!
+              energyCounters: energyCounters.get(device.serialNumber)!
             }))}
         />
       )}

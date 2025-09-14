@@ -97,15 +97,15 @@ async function scanNetwork(): Promise<Map<string, ArpEntry>> {
         const ip = match[2];
         const mac = match[3];
         
-        // Normalize MAC to standard format (pad octets to 2 digits)
+        // Normalise MAC to standard format (pad octets to 2 digits)
         const separator = mac.includes(':') ? ':' : '-';
         const octets = mac.split(separator);
-        const normalizedMac = octets.map(octet => 
+        const normalisedMac = octets.map(octet => 
           octet.padStart(2, '0').toLowerCase()
         ).join(':');
         
         arpTable.set(ip, { 
-          mac: normalizedMac,
+          mac: normalisedMac,
           hostname: hostname !== '?' ? hostname : undefined
         });
       } else {
@@ -116,14 +116,14 @@ async function scanNetwork(): Promise<Map<string, ArpEntry>> {
           const ip = match[1];
           const mac = match[2];
           
-          // Normalize MAC to standard format
+          // Normalise MAC to standard format
           const separator = mac.includes(':') ? ':' : '-';
           const octets = mac.split(separator);
-          const normalizedMac = octets.map(octet => 
+          const normalisedMac = octets.map(octet => 
             octet.padStart(2, '0').toLowerCase()
           ).join(':');
           
-          arpTable.set(ip, { mac: normalizedMac });
+          arpTable.set(ip, { mac: normalisedMac });
         }
       }
     }
