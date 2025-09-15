@@ -102,7 +102,7 @@ export default function EnergyTable({ devices, siteEnergy }: EnergyTableProps) {
 
   return (
     <div className="bg-black rounded-lg p-4 mt-4">
-      <h3 className="text-lg font-semibold text-white mb-3">Energy Counters (kWh)</h3>
+      <h3 className="text-lg font-semibold text-white mb-3">Energy Counters</h3>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
@@ -110,12 +110,12 @@ export default function EnergyTable({ devices, siteEnergy }: EnergyTableProps) {
               <th className="text-left py-1 px-3 text-gray-400 font-medium">Type</th>
               {devices.map(device => (
                 <th key={device.ip} className="text-right py-1 px-3 text-gray-400 font-medium min-w-[100px]">
-                  {device.name}
+                  {device.name} <span className="text-gray-600">kWh</span>
                 </th>
               ))}
               {(devices.length > 1 || visibleEnergyTypes.some(t => t.key === 'loadWh')) && (
                 <th className="text-right py-1 px-3 text-gray-400 font-medium min-w-[100px] border-l border-gray-700">
-                  Site
+                  Site <span className="text-gray-600">kWh</span>
                 </th>
               )}
             </tr>

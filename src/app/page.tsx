@@ -182,6 +182,16 @@ export default function Home() {
       // Handle inverter heartbeat events (sent on each poll)
       eventSource.addEventListener('inverterHeartbeat', (event) => {
         const heartbeat = JSON.parse(event.data);
+        
+        // Update lastDataFetch for the device
+        setDevices(prevDevices => 
+          prevDevices.map(device => 
+            device.serialNumber === heartbeat.serialNumber
+              ? { ...device, lastDataFetch: heartbeat.timestamp }
+              : device
+          )
+        );
+        
         // Dispatch a custom event that HealthIndicator components can listen to
         window.dispatchEvent(new CustomEvent('inverterHeartbeat', { 
           detail: heartbeat 

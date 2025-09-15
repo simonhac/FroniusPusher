@@ -206,6 +206,10 @@ export default function PowerChart({ historicalData, devices }: PowerChartProps)
       },
       tooltip: {
         callbacks: {
+          title: function(tooltipItems) {
+            const date = timePointsRef.current[tooltipItems[0].dataIndex];
+            return date ? format(date, 'hh:mm:ssa') : '';
+          },
           label: function(context: TooltipItem<'line'>) {
             let label = context.dataset.label || '';
             if (label) {
@@ -228,41 +232,32 @@ export default function PowerChart({ historicalData, devices }: PowerChartProps)
         ticks: {
           color: 'rgb(107, 114, 128)',
           maxTicksLimit: 10,
+          autoSkip: true,
           callback: function(value, index, values) {
             const date = timePointsRef.current[index];
             if (!date) return '';
             
-            // Show label at the minute mark (:00 seconds)
-            if (date.getSeconds() === 0) {
-              return format(date, 'h:mm');
-            }
-            
-            // Also show labels at reasonable intervals to avoid empty axis
-            if (values.length <= 10) {
-              // Show all labels when few points
-              return format(date, 'h:mm');
-            } else if (index % 30 === 0) {
-              // Show every minute when many points
-              return format(date, 'h:mm');
-            }
-            
-            return '';
+            // Only show time labels, let autoSkip handle spacing
+            return format(date, 'h:mm');
           }
         },
         grid: {
           display: true,
           color: function(context) {
-            if (context.index === undefined || context.index === null) return 'transparent';
+            const index = context.index;
+            if (index === undefined || index === null) return 'rgba(107, 114, 128, 0.2)';
             
-            const date = timePointsRef.current[context.index];
-            if (!date) return 'transparent';
+            const date = timePointsRef.current[index];
+            if (!date) return 'rgba(107, 114, 128, 0.2)';
             
-            // Show grid line every minute (when seconds === 0)
-            // Use a visible color for minute marks, transparent for others
-            return date.getSeconds() === 0 ? 'rgba(107, 114, 128, 0.3)' : 'transparent';
-          },
-          drawBorder: false,
-          drawTicks: false
+            // Stronger grid line at minute marks
+            const seconds = date.getSeconds();
+            if (seconds === 0 || seconds === 2) {  // Allow 2 second tolerance
+              return 'rgba(107, 114, 128, 0.4)';
+            }
+            
+            return 'rgba(107, 114, 128, 0.2)';
+          }
         }
       },
       y: {
@@ -293,8 +288,20 @@ export default function PowerChart({ historicalData, devices }: PowerChartProps)
           }
         },
         grid: {
-          color: 'rgba(107, 114, 128, 0.1)',
-          drawBorder: false
+          color: function(context) {
+            // Check if this is the zero line
+            if (context.tick && context.tick.value === 0) {
+              return 'rgba(107, 114, 128, 0.6)';  // Stronger medium grey at y=0
+            }
+            return 'rgba(107, 114, 128, 0.3)';  // Medium grey hairline for other values
+          },
+          lineWidth: function(context) {
+            // Triple width for zero line
+            if (context.tick && context.tick.value === 0) {
+              return 3;
+            }
+            return 1;  // Hairline for other gridlines
+          }
         }
       }
     }

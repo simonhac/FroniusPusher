@@ -15,7 +15,7 @@ export default function HealthIndicator({ serialNumber, devices }: HealthIndicat
   const [lastUpdate, setLastUpdate] = useState<Record<string, Date>>({});
   const [isPulsing, setIsPulsing] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
-  const pulseTimeoutRef = useRef<NodeJS.Timeout>();
+  const pulseTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
   
   // Update current time every second for tooltip
   useEffect(() => {
