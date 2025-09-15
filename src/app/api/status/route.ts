@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDeviceManager } from '@/lib/device-manager';
+import { getSite } from '@/lib/site';
 import { formatDateValue } from '@/lib/date-utils';
 
 export const runtime = 'nodejs';
 
 export async function GET(request: NextRequest) {
   try {
-    const deviceManager = getDeviceManager();
-    const status = deviceManager.getStatus();
+    const site = getSite();
+    const status = site.getStatus();
     
     // Format dates in devices
     const formattedDevices = status.devices.map((device: any) => ({
@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
     // Get energy counters for all devices
     const energyCounters: any = {};
     for (const device of status.devices) {
-      const counters = deviceManager.getFormattedEnergyCounters(device.serialNumber);
+      const counters = site.getFormattedEnergyCounters(device.serialNumber);
       if (counters) {
         // Use serial number as key
         energyCounters[device.serialNumber] = counters;

@@ -1,0 +1,575 @@
+FRONIUS INVERTER RAW API RESPONSES
+Generated on: $(date)
+
+This file contains raw JSON responses from all discovered Fronius inverters on the network.
+
+================================================================================
+MASTER INVERTER (10.0.1.190) - Kinkora Master
+Serial Number: 31347675
+================================================================================
+
+=== INVERTER INFO ===
+IP: 10.0.1.190
+Endpoint: /solar_api/v1/GetInverterInfo.cgi
+
+{
+   "Body" : {
+      "Data" : {
+         "1" : {
+            "CustomName" : "Kinkora Master",
+            "DT" : 1,
+            "ErrorCode" : 0,
+            "InverterState" : "Running",
+            "PVPower" : 10400,
+            "Show" : 1,
+            "StatusCode" : 7,
+            "UniqueID" : "31347675"
+         }
+      }
+   },
+   "Head" : {
+      "RequestArguments" : {},
+      "Status" : {
+         "Code" : 0,
+         "Reason" : "",
+         "UserMessage" : ""
+      },
+      "Timestamp" : "2025-09-14T12:54:55+00:00"
+   }
+}
+
+=== BATTERY/STORAGE INFO ===
+IP: 10.0.1.190
+Endpoint: /solar_api/v1/GetStorageRealtimeData.cgi
+
+{
+   "Body" : {
+      "Data" : {
+         "0" : {
+            "Controller" : {
+               "Capacity_Maximum" : 22464.0,
+               "Current_DC" : 1.198179979777553,
+               "DesignedCapacity" : 22464.0,
+               "Details" : {
+                  "Manufacturer" : "BYD",
+                  "Model" : "BYD Battery-Box Premium HV",
+                  "Serial" : "P030T020Z2010093365     "
+               },
+               "Enable" : 1,
+               "StateOfCharge_Relative" : 3.0,
+               "Status_BatteryCell" : 3.0,
+               "Temperature_Cell" : 21.5,
+               "TimeStamp" : 1757854493,
+               "Voltage_DC" : 395.60000000000002
+            },
+            "Modules" : []
+         }
+      }
+   },
+   "Head" : {
+      "RequestArguments" : {
+         "Scope" : "System"
+      },
+      "Status" : {
+         "Code" : 0,
+         "Reason" : "",
+         "UserMessage" : ""
+      },
+      "Timestamp" : "2025-09-14T12:54:55+00:00"
+   }
+}
+
+=== METER INFO ===
+IP: 10.0.1.190
+Endpoint: /solar_api/v1/GetMeterRealtimeData.cgi
+
+{
+   "Body" : {
+      "Data" : {
+         "0" : {
+            "Current_AC_Phase_1" : 3.2592215538024902,
+            "Current_AC_Phase_2" : 4.3039193153381348,
+            "Current_AC_Phase_3" : 6.8729400634765625,
+            "Current_AC_Sum" : 14.436080932617188,
+            "Details" : {
+               "Manufacturer" : "Fronius",
+               "Model" : "CCS WattNode WND-3D-480-MB",
+               "Serial" : "816956"
+            },
+            "Enable" : 1,
+            "EnergyReal_WAC_Minus_Absolute" : 21688281.0,
+            "EnergyReal_WAC_Phase_1_Consumed" : 15674794.0,
+            "EnergyReal_WAC_Phase_1_Produced" : 16013119.0,
+            "EnergyReal_WAC_Phase_2_Consumed" : 31283336.0,
+            "EnergyReal_WAC_Phase_2_Produced" : 6989743.0,
+            "EnergyReal_WAC_Phase_3_Consumed" : 33060568.0,
+            "EnergyReal_WAC_Phase_3_Produced" : 9842168.0,
+            "EnergyReal_WAC_Plus_Absolute" : 68861949.0,
+            "EnergyReal_WAC_Sum_Consumed" : 68861949.0,
+            "EnergyReal_WAC_Sum_Produced" : 21688281.0,
+            "Frequency_Phase_Average" : 50.003837585449219,
+            "Meter_Location_Current" : 0.0,
+            "PowerApparent_S_Phase_1" : 788.037841796875,
+            "PowerApparent_S_Phase_2" : 1034.465576171875,
+            "PowerApparent_S_Phase_3" : 1657.29052734375,
+            "PowerApparent_S_Sum" : 3479.7939453125,
+            "PowerFactor_Phase_1" : 0.61463874578475952,
+            "PowerFactor_Phase_2" : 0.49111998081207275,
+            "PowerFactor_Phase_3" : 0.79851961135864258,
+            "PowerFactor_Sum" : 0.66549468040466309,
+            "PowerReactive_Q_Phase_1" : -600.78466796875,
+            "PowerReactive_Q_Phase_2" : -858.39813232421875,
+            "PowerReactive_Q_Phase_3" : -599.02838134765625,
+            "PowerReactive_Q_Sum" : -2058.211181640625,
+            "PowerReal_P_Phase_1" : 484.35858154296875,
+            "PowerReal_P_Phase_2" : 508.04672241210938,
+            "PowerReal_P_Phase_3" : 1323.3790283203125,
+            "PowerReal_P_Sum" : 2315.7841796875,
+            "TimeStamp" : 1757854495,
+            "Visible" : 1,
+            "Voltage_AC_PhaseToPhase_12" : 417.08773803710938,
+            "Voltage_AC_PhaseToPhase_23" : 415.86917114257812,
+            "Voltage_AC_PhaseToPhase_31" : 419.70748901367188,
+            "Voltage_AC_Phase_1" : 241.78752136230469,
+            "Voltage_AC_Phase_2" : 240.35433959960938,
+            "Voltage_AC_Phase_3" : 241.13261413574219,
+            "Voltage_AC_Phase_Average" : 241.09149169921875
+         }
+      }
+   },
+   "Head" : {
+      "RequestArguments" : {
+         "Scope" : "System"
+      },
+      "Status" : {
+         "Code" : 0,
+         "Reason" : "",
+         "UserMessage" : ""
+      },
+      "Timestamp" : "2025-09-14T12:54:55+00:00"
+   }
+}
+
+=== COMPONENTS INFO ===
+IP: 10.0.1.190
+Endpoint: /api/components/inverter/readable
+
+{
+	"Body" : 
+	{
+		"Data" : 
+		{
+			"0" : 
+			{
+				"attributes" : 
+				{
+					".simple-version-field" : "IG24;;;",
+					"CTRL.rev-hw" : "4,071,452|0",
+					"CTRL.rev-sw" : "1.0.1-1",
+					"PS.rev-hw" : "4,071,585|1;4,071,594|2",
+					"PS.rev-sw" : "1.6.1-30738",
+					"PS2.rev-hw" : "4,071,585|1;4,071,594|2",
+					"PS2.rev-sw" : "3.5.5-23199",
+					"[ENABLE]" : "true",
+					"[VISIBLE]" : "true",
+					"createTS" : "1757449261",
+					"device-id" : "Fronius_Inverter_76df86250dcf",
+					"deviceTreeInfo" : "{\"if\":\"CAN\",\"inverter\":{\"uid\":\"16777215\"},\"inverter.attr.0\":\"\",\"inverter.attr.1\":\"4,210,145\",\"modules\":{\"CTRL\":{\"rev-hw\":\"4,071,452|0\",\"rev-sw\":\"1.0.1-1\",\"uid\":\"16777215\"},\"PS\":{\"rev-hw\":\"4,071,585|1;4,071,594|2\",\"rev-sw\":\"1.6.1-30738\"},\"PS2\":{\"rev-hw\":\"4,071,585|1;4,071,594|2\",\"rev-sw\":\"3.5.5-23199\"}},\"name\":\"Pilot\",\"rev\":\"\"}\n",
+					"devicetype" : "0",
+					"if" : "CAN",
+					"main" : "CTRL",
+					"manufacturer" : "Fronius",
+					"model" : "Fronius Gen24",
+					"nodetype" : "97",
+					"note" : "dataexchange",
+					"pmc.0" : "30511000674680014|4,071,452|0.5D_A|PILOT|R|",
+					"pmc.1" : "31161001142720088|4,071,585|0.6D_D|ROX|R|",
+					"pmc.2" : "31191005301280034|4,071,594|0.4C__|3PN10K|R|",
+					"uid" : "16777215"
+				},
+				"channels" : 
+				{
+					"<1090584584>" : 172866964.0,
+					"<1107361800>" : 569695959.0,
+					"<1124139016>" : 56846543.0,
+					"<1140916232>" : 92258597.0,
+					"<1157693448>" : 4448627.0,
+					"<1174470664>" : 213642212.0,
+					"<1208025096>" : 12929.0,
+					"<1224802312>" : 50676.0,
+					"<1241579528>" : 2572.0,
+					"<1258356744>" : 0.0,
+					"<1275133960>" : 0.0,
+					"<1291911176>" : 0.0,
+					"<1308688392>" : 14933.0,
+					"<1325465608>" : 10293.0,
+					"<1342242824>" : 19865.0,
+					"<1359020040>" : 5607.0,
+					"<1375797256>" : 4699.0,
+					"<1392574472>" : 5617.0,
+					"<1409351876>" : 96793107.0,
+					"<2197881028>" : 4.0,
+					"<2214658244>" : 0.0,
+					"<2231435460>" : 4.0,
+					"<2231566532>" : 457.0,
+					"<2315517954>" : 1.0,
+					"<2349006852>" : 2407.0,
+					"<2365784260>" : 460.6893310546875,
+					"<2382561476>" : 542.15478515625,
+					"<2399338692>" : 316.20962524414062,
+					"<2500001988>" : 20.114156723022461,
+					"<2516779204>" : 22.0,
+					"<2533556420>" : 20.234432220458984,
+					"<2550333636>" : 0.0,
+					"<2567110852>" : 57.092071533203125,
+					"<2600534212>" : 395.09268188476562,
+					"<2701197508>" : 0.0,
+					"<2717974724>" : 120.00000762939453,
+					"<2734751940>" : 240.00001525878906,
+					"<3171221700>" : 1.4373949766159058,
+					"<3187998916>" : 32.506675720214844,
+					"<604242116>" : 53.6407470703125,
+					"<939589828>" : 165650.0,
+					"<973144260>" : 96791957.0,
+					"ACBRIDGE_CURRENT_ACTIVE_MEAN_01_F32" : 0.75878971815109253,
+					"ACBRIDGE_CURRENT_ACTIVE_MEAN_02_F32" : 0.75852751731872559,
+					"ACBRIDGE_CURRENT_ACTIVE_MEAN_03_F32" : 0.75872683525085449,
+					"ACBRIDGE_ENERGYACTIVE_ACTIVECONSUMED_SUM_01_U64" : 2975667428.0,
+					"ACBRIDGE_ENERGYACTIVE_ACTIVECONSUMED_SUM_02_U64" : 2931632313.0,
+					"ACBRIDGE_ENERGYACTIVE_ACTIVECONSUMED_SUM_03_U64" : 2934176026.0,
+					"ACBRIDGE_ENERGYACTIVE_PRODUCED_SUM_01_U64" : 65555141422.0,
+					"ACBRIDGE_ENERGYACTIVE_PRODUCED_SUM_02_U64" : 64907585673.0,
+					"ACBRIDGE_ENERGYACTIVE_PRODUCED_SUM_03_U64" : 66012256274.0,
+					"ACBRIDGE_FREQUENCY_MEAN_F32" : 50.003635406494141,
+					"ACBRIDGE_POWERACTIVE_MEAN_01_F32" : -182.04173278808594,
+					"ACBRIDGE_POWERACTIVE_MEAN_02_F32" : -180.94931030273438,
+					"ACBRIDGE_POWERACTIVE_MEAN_03_F32" : -181.46961975097656,
+					"ACBRIDGE_POWERACTIVE_SUM_MEAN_F32" : -544.46063232421875,
+					"ACBRIDGE_POWERAPPARENT_MEAN_01_F32" : 182.6158447265625,
+					"ACBRIDGE_POWERAPPARENT_MEAN_02_F32" : 181.47611999511719,
+					"ACBRIDGE_POWERAPPARENT_MEAN_03_F32" : 182.01968383789062,
+					"ACBRIDGE_POWERAPPARENT_SUM_MEAN_F32" : 546.12054443359375,
+					"ACBRIDGE_POWERREACTIVE_MEAN_01_F32" : -4.6787252426147461,
+					"ACBRIDGE_POWERREACTIVE_MEAN_02_F32" : -4.9944052696228027,
+					"ACBRIDGE_POWERREACTIVE_MEAN_03_F32" : -6.5319738388061523,
+					"ACBRIDGE_POWERREACTIVE_SUM_MEAN_F32" : -16.205104827880859,
+					"ACBRIDGE_TIME_BACKUPMODE_UPTIME_SUM_F32" : 1150.0,
+					"ACBRIDGE_VOLTAGE_MEAN_01_F32" : 240.67178344726562,
+					"ACBRIDGE_VOLTAGE_MEAN_02_F32" : 239.253173828125,
+					"ACBRIDGE_VOLTAGE_MEAN_03_F32" : 239.90423583984375,
+					"ACBRIDGE_VOLTAGE_MEAN_12_F32" : 415.38796997070312,
+					"ACBRIDGE_VOLTAGE_MEAN_23_F32" : 413.9290771484375,
+					"ACBRIDGE_VOLTAGE_MEAN_31_F32" : 417.4560546875,
+					"BAT_CURRENT_MEAN_F32" : -1.2648845911026001,
+					"BAT_ENERGYACTIVE_ACTIVECHARGE_SUM_01_U64" : 81800878665.0,
+					"BAT_ENERGYACTIVE_ACTIVEDISCHARGE_SUM_01_U64" : 77001151836.0,
+					"BAT_MODE_ENFORCED_U16" : 0.0,
+					"BAT_POWERACTIVE_MEAN_F32" : -499.74664306640625,
+					"BAT_VOLTAGE_OUTER_MEAN_01_F32" : 395.29461669921875,
+					"COMPONENTS_MODE_ENABLE_U16" : 1.0,
+					"COMPONENTS_MODE_VISIBLE_U16" : 1.0,
+					"COMPONENTS_TIME_STAMP_U64" : 1757854495.0,
+					"DCLINK_VOLTAGE_MEAN_F32" : 623.7266845703125,
+					"DEVICE_MODE_OPERATING_REFERRAL_U16" : 1.0,
+					"DEVICE_TEMPERATURE_AMBIENTMEAN_01_F32" : 51.4395751953125,
+					"DEVICE_TIME_UPTIME_SUM_F32" : 147088422.0,
+					"FANCONTROL_PERCENT_01_F32" : 0.0,
+					"FANCONTROL_PERCENT_02_F32" : 0.0,
+					"FEEDINPOINT_FREQUENCY_MEAN_F32" : 50.006507873535156,
+					"FEEDINPOINT_MODE_GRID_VALIDITY_U8" : 1.0,
+					"FEEDINPOINT_VOLTAGE_MEAN_01_F32" : 240.60025024414062,
+					"FEEDINPOINT_VOLTAGE_MEAN_02_F32" : 239.04904174804688,
+					"FEEDINPOINT_VOLTAGE_MEAN_03_F32" : 239.96701049804688,
+					"FEEDINPOINT_VOLTAGE_MEAN_12_F32" : 415.02066040039062,
+					"FEEDINPOINT_VOLTAGE_MEAN_23_F32" : 413.80239868164062,
+					"FEEDINPOINT_VOLTAGE_MEAN_31_F32" : 417.57833862304688,
+					"ISO_RESISTANCE_MEAN_F32" : 32941878.0,
+					"LEGACY_MODE_BACKUP_OPERATION_SYNC_DM_SYSTEMS_U16" : 1.0,
+					"MODULE_TEMPERATURE_MEAN_01_F32" : 38.35589599609375,
+					"MODULE_TEMPERATURE_MEAN_03_F32" : 34.969024658203125,
+					"MODULE_TEMPERATURE_MEAN_04_F32" : 35.4560546875,
+					"PV_CURRENT_MEAN_01_F32" : 0.0,
+					"PV_CURRENT_MEAN_02_F32" : 0.0,
+					"PV_ENERGYACTIVE_ACTIVE_SUM_01_U64" : 134209887933.0,
+					"PV_ENERGYACTIVE_ACTIVE_SUM_02_U64" : 66657066406.0,
+					"PV_POWERACTIVE_MEAN_01_F32" : 0.0,
+					"PV_POWERACTIVE_MEAN_02_F32" : 0.0,
+					"PV_VOLTAGE_MEAN_01_F32" : 8.6791753768920898,
+					"PV_VOLTAGE_MEAN_02_F32" : 8.8210983276367188,
+					"RELAY_MODE_ACTIVATE_BACKUP_INTERLOCK_OPT_U16" : 0.0,
+					"RELAY_MODE_ACTIVATE_BACKUP_INTERLOCK_U16" : 0.0
+				}
+			}
+		}
+	},
+	"Head" : 
+	{
+		"Note" : "this internal API may be changed any time",
+		"RequestArguments" : 
+		{
+			"method" : "get",
+			"resource" : "inverter/readable"
+		},
+		"Status" : 
+		{
+			"Code" : 0,
+			"ErrorDetail" : 
+			{
+				"Nodes" : []
+			},
+			"Reason" : "",
+			"UserMessage" : ""
+		},
+		"Timestamp" : "2025-09-14T12:54:55+00:00"
+	}
+}
+================================================================================
+SLAVE INVERTER (10.0.1.191) - Kinkora Slave
+Serial Number: 31347674
+================================================================================
+
+=== INVERTER INFO ===
+IP: 10.0.1.191
+Endpoint: /solar_api/v1/GetInverterInfo.cgi
+
+{
+   "Body" : {
+      "Data" : {
+         "1" : {
+            "CustomName" : "Kinkora Slave",
+            "DT" : 1,
+            "ErrorCode" : 1175,
+            "InverterState" : "Sleeping",
+            "PVPower" : 10400,
+            "Show" : 1,
+            "StatusCode" : 13,
+            "UniqueID" : "31347674"
+         }
+      }
+   },
+   "Head" : {
+      "RequestArguments" : {},
+      "Status" : {
+         "Code" : 0,
+         "Reason" : "",
+         "UserMessage" : ""
+      },
+      "Timestamp" : "2025-09-14T12:55:05+00:00"
+   }
+}
+
+=== BATTERY/STORAGE INFO ===
+IP: 10.0.1.191
+Endpoint: /solar_api/v1/GetStorageRealtimeData.cgi
+
+{
+   "Body" : {
+      "Data" : {}
+   },
+   "Head" : {
+      "RequestArguments" : {
+         "Scope" : "System"
+      },
+      "Status" : {
+         "Code" : 0,
+         "Reason" : "",
+         "UserMessage" : ""
+      },
+      "Timestamp" : "2025-09-14T12:55:05+00:00"
+   }
+}
+
+=== METER INFO ===
+IP: 10.0.1.191
+Endpoint: /solar_api/v1/GetMeterRealtimeData.cgi
+
+{
+   "Body" : {
+      "Data" : {}
+   },
+   "Head" : {
+      "RequestArguments" : {
+         "Scope" : "System"
+      },
+      "Status" : {
+         "Code" : 0,
+         "Reason" : "",
+         "UserMessage" : ""
+      },
+      "Timestamp" : "2025-09-14T12:55:05+00:00"
+   }
+}
+
+=== COMPONENTS INFO ===
+IP: 10.0.1.191
+Endpoint: /api/components/inverter/readable
+
+{
+	"Body" : 
+	{
+		"Data" : 
+		{
+			"0" : 
+			{
+				"attributes" : 
+				{
+					".simple-version-field" : "IG24;;;",
+					"CTRL.rev-hw" : "4,071,452|0",
+					"CTRL.rev-sw" : "1.0.1-1",
+					"PS.rev-hw" : "4,071,585|1;4,071,594|2",
+					"PS.rev-sw" : "1.6.1-30738",
+					"PS2.rev-hw" : "4,071,585|1;4,071,594|2",
+					"PS2.rev-sw" : "3.5.5-23199",
+					"[ENABLE]" : "true",
+					"[VISIBLE]" : "true",
+					"createTS" : "1757552230",
+					"device-id" : "Fronius_Inverter_b14c38804588",
+					"deviceTreeInfo" : "{\"if\":\"CAN\",\"inverter\":{\"uid\":\"16777215\"},\"inverter.attr.0\":\"\",\"inverter.attr.1\":\"4,210,145\",\"modules\":{\"CTRL\":{\"rev-hw\":\"4,071,452|0\",\"rev-sw\":\"1.0.1-1\",\"uid\":\"16777215\"},\"PS\":{\"rev-hw\":\"4,071,585|1;4,071,594|2\",\"rev-sw\":\"1.6.1-30738\"},\"PS2\":{\"rev-hw\":\"4,071,585|1;4,071,594|2\",\"rev-sw\":\"3.5.5-23199\"}},\"name\":\"Pilot\",\"rev\":\"\"}\n",
+					"devicetype" : "0",
+					"if" : "CAN",
+					"main" : "CTRL",
+					"manufacturer" : "Fronius",
+					"model" : "Fronius Gen24",
+					"nodetype" : "97",
+					"note" : "dataexchange",
+					"pmc.0" : "30511000674680094|4,071,452|0.5D_A|PILOT|R|",
+					"pmc.1" : "31161001142720085|4,071,585|0.6D_D|ROX|R|",
+					"pmc.2" : "31191005301280049|4,071,594|0.4C__|3PN10K|R|",
+					"uid" : "16777215"
+				},
+				"channels" : 
+				{
+					"<1090584584>" : 1710280956.0,
+					"<1107361800>" : 1970207008.0,
+					"<1124139016>" : 1646028138.0,
+					"<1140916232>" : 18068593.0,
+					"<1157693448>" : 540446.0,
+					"<1174470664>" : 66628453.0,
+					"<1208025096>" : 0.0,
+					"<1224802312>" : 0.0,
+					"<1241579528>" : 0.0,
+					"<1258356744>" : 0.0,
+					"<1275133960>" : 0.0,
+					"<1291911176>" : 0.0,
+					"<1308688392>" : 0.0,
+					"<1325465608>" : 0.0,
+					"<1342242824>" : 0.0,
+					"<1359020040>" : 0.0,
+					"<1375797256>" : 0.0,
+					"<1392574472>" : 0.0,
+					"<1409351876>" : 70454091.0,
+					"<2197881028>" : 2.0,
+					"<2214658244>" : 0.0,
+					"<2231435460>" : 2.0,
+					"<2231566532>" : 366.0,
+					"<2315517954>" : 1.0,
+					"<2349006852>" : 1966.0,
+					"<2365784260>" : 460.06057739257812,
+					"<2382561476>" : 338.3040771484375,
+					"<2399338692>" : 258.9329833984375,
+					"<2500001988>" : 23.055070877075195,
+					"<2516779204>" : 0.0,
+					"<2533556420>" : 11.87053108215332,
+					"<2550333636>" : 0.0,
+					"<2567110852>" : 56.05047607421875,
+					"<2701197508>" : 0.0,
+					"<2717974724>" : 120.00000762939453,
+					"<2734751940>" : 240.00001525878906,
+					"<3171221700>" : -0.053199607878923416,
+					"<3187998916>" : 1.0666303634643555,
+					"<604242116>" : 54.946380615234375,
+					"<939589828>" : 165313.0,
+					"<973144260>" : 70454091.0,
+					"ACBRIDGE_CURRENT_ACTIVE_MEAN_01_F32" : 0.0,
+					"ACBRIDGE_CURRENT_ACTIVE_MEAN_02_F32" : 0.0,
+					"ACBRIDGE_CURRENT_ACTIVE_MEAN_03_F32" : 0.0,
+					"ACBRIDGE_ENERGYACTIVE_ACTIVECONSUMED_SUM_01_U64" : 116959.0,
+					"ACBRIDGE_ENERGYACTIVE_ACTIVECONSUMED_SUM_02_U64" : 9800.0,
+					"ACBRIDGE_ENERGYACTIVE_ACTIVECONSUMED_SUM_03_U64" : 770.0,
+					"ACBRIDGE_ENERGYACTIVE_PRODUCED_SUM_01_U64" : 49678847403.0,
+					"ACBRIDGE_ENERGYACTIVE_PRODUCED_SUM_02_U64" : 49205974693.0,
+					"ACBRIDGE_ENERGYACTIVE_PRODUCED_SUM_03_U64" : 50046113883.0,
+					"ACBRIDGE_FREQUENCY_MEAN_F32" : 0.0,
+					"ACBRIDGE_POWERACTIVE_MEAN_01_F32" : 0.0,
+					"ACBRIDGE_POWERACTIVE_MEAN_02_F32" : 0.0,
+					"ACBRIDGE_POWERACTIVE_MEAN_03_F32" : 0.0,
+					"ACBRIDGE_POWERACTIVE_SUM_MEAN_F32" : 0.0,
+					"ACBRIDGE_POWERAPPARENT_MEAN_01_F32" : 0.0,
+					"ACBRIDGE_POWERAPPARENT_MEAN_02_F32" : 0.0,
+					"ACBRIDGE_POWERAPPARENT_MEAN_03_F32" : 0.0,
+					"ACBRIDGE_POWERAPPARENT_SUM_MEAN_F32" : 0.0,
+					"ACBRIDGE_POWERREACTIVE_MEAN_01_F32" : 0.0,
+					"ACBRIDGE_POWERREACTIVE_MEAN_02_F32" : 0.0,
+					"ACBRIDGE_POWERREACTIVE_MEAN_03_F32" : 0.0,
+					"ACBRIDGE_POWERREACTIVE_SUM_MEAN_F32" : 0.0,
+					"ACBRIDGE_TIME_BACKUPMODE_UPTIME_SUM_F32" : 0.0,
+					"ACBRIDGE_VOLTAGE_MEAN_01_F32" : 0.0,
+					"ACBRIDGE_VOLTAGE_MEAN_02_F32" : 0.0,
+					"ACBRIDGE_VOLTAGE_MEAN_03_F32" : 0.0,
+					"ACBRIDGE_VOLTAGE_MEAN_12_F32" : 0.0,
+					"ACBRIDGE_VOLTAGE_MEAN_23_F32" : 0.0,
+					"ACBRIDGE_VOLTAGE_MEAN_31_F32" : 0.0,
+					"BAT_ENERGYACTIVE_ACTIVECHARGE_SUM_01_U64" : 0.0,
+					"BAT_ENERGYACTIVE_ACTIVEDISCHARGE_SUM_01_U64" : 0.0,
+					"BAT_MODE_ENFORCED_U16" : 2.0,
+					"BAT_VOLTAGE_OUTER_MEAN_01_F32" : 67.12939453125,
+					"COMPONENTS_MODE_ENABLE_U16" : 1.0,
+					"COMPONENTS_MODE_VISIBLE_U16" : 1.0,
+					"COMPONENTS_TIME_STAMP_U64" : 1757854505.0,
+					"DCLINK_VOLTAGE_MEAN_F32" : 134.0440673828125,
+					"DEVICE_MODE_OPERATING_REFERRAL_U16" : 1.0,
+					"DEVICE_TEMPERATURE_AMBIENTMEAN_01_F32" : 38.02764892578125,
+					"DEVICE_TIME_UPTIME_SUM_F32" : 147181680.0,
+					"FANCONTROL_PERCENT_01_F32" : 0.0,
+					"FANCONTROL_PERCENT_02_F32" : 0.0,
+					"FEEDINPOINT_FREQUENCY_MEAN_F32" : 50.003868103027344,
+					"FEEDINPOINT_MODE_GRID_VALIDITY_U8" : 0.0,
+					"FEEDINPOINT_VOLTAGE_MEAN_01_F32" : 240.79411315917969,
+					"FEEDINPOINT_VOLTAGE_MEAN_02_F32" : 239.07379150390625,
+					"FEEDINPOINT_VOLTAGE_MEAN_03_F32" : 239.82986450195312,
+					"FEEDINPOINT_VOLTAGE_MEAN_12_F32" : 415.41397094726562,
+					"FEEDINPOINT_VOLTAGE_MEAN_23_F32" : 413.84658813476562,
+					"FEEDINPOINT_VOLTAGE_MEAN_31_F32" : 417.28515625,
+					"ISO_RESISTANCE_MEAN_F32" : 11666227.0,
+					"LEGACY_MODE_BACKUP_OPERATION_SYNC_DM_SYSTEMS_U16" : 0.0,
+					"MODULE_TEMPERATURE_MEAN_01_F32" : 23.559112548828125,
+					"MODULE_TEMPERATURE_MEAN_03_F32" : 23.770721435546875,
+					"MODULE_TEMPERATURE_MEAN_04_F32" : 23.2149658203125,
+					"PV_CURRENT_MEAN_01_F32" : 0.0,
+					"PV_CURRENT_MEAN_02_F32" : 0.0,
+					"PV_ENERGYACTIVE_ACTIVE_SUM_01_U64" : 105588630111.0,
+					"PV_ENERGYACTIVE_ACTIVE_SUM_02_U64" : 48766987857.0,
+					"PV_POWERACTIVE_MEAN_01_F32" : 0.0,
+					"PV_POWERACTIVE_MEAN_02_F32" : 0.0,
+					"PV_VOLTAGE_MEAN_01_F32" : 1.7204868793487549,
+					"PV_VOLTAGE_MEAN_02_F32" : 5.0477585792541504,
+					"RELAY_MODE_ACTIVATE_BACKUP_INTERLOCK_OPT_U16" : 0.0,
+					"RELAY_MODE_ACTIVATE_BACKUP_INTERLOCK_U16" : 0.0
+				}
+			}
+		}
+	},
+	"Head" : 
+	{
+		"Note" : "this internal API may be changed any time",
+		"RequestArguments" : 
+		{
+			"method" : "get",
+			"resource" : "inverter/readable"
+		},
+		"Status" : 
+		{
+			"Code" : 0,
+			"ErrorDetail" : 
+			{
+				"Nodes" : []
+			},
+			"Reason" : "",
+			"UserMessage" : ""
+		},
+		"Timestamp" : "2025-09-14T12:55:05+00:00"
+	}
+}
+================================================================================
+END OF RAW API RESPONSES
+================================================================================

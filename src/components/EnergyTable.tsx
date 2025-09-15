@@ -4,12 +4,12 @@ import React from 'react';
 import { Sun, Battery, Zap, Home, ArrowRight, ArrowLeft } from 'lucide-react';
 
 interface EnergyCounters {
-  solar?: number;
-  batteryIn?: number;
-  batteryOut?: number;
-  gridIn?: number;
-  gridOut?: number;
-  load?: number;
+  solarWh?: number;
+  batteryInWh?: number;
+  batteryOutWh?: number;
+  gridInWh?: number;
+  gridOutWh?: number;
+  loadWh?: number;
 }
 
 interface DeviceEnergyData {
@@ -29,72 +29,75 @@ export default function EnergyTable({ devices, siteEnergy }: EnergyTableProps) {
   }
 
   const formatEnergy = (value: number | undefined) => {
-    if (value === undefined || value === null) return '-';
-    return value.toFixed(3);
+    if (value === undefined || value === null) return '—';
+    // Convert from Wh to kWh for display
+    return (value / 1000).toFixed(3);
   };
 
   // Aggregate all energy types across devices
   const energyTypes = [
     { 
-      key: 'solar', 
+      key: 'solarWh', 
       label: 'Solar Generated', 
       color: 'text-yellow-400',
       icon: <Sun className="w-4 h-4 text-yellow-400" />
     },
     { 
-      key: 'batteryIn', 
+      key: 'batteryInWh', 
       label: 'Battery Charged', 
       color: 'text-green-400',
       icon: <Battery className="w-4 h-4 text-green-400" />
     },
     { 
-      key: 'batteryOut', 
+      key: 'batteryOutWh', 
       label: 'Battery Discharged', 
       color: 'text-blue-400',
       icon: <Battery className="w-4 h-4 text-blue-400" />
     },
     { 
-      key: 'gridIn', 
+      key: 'gridInWh', 
       label: 'Grid Import', 
       color: 'text-purple-400',
       icon: <ArrowRight className="w-4 h-4 text-purple-400" />
     },
     { 
-      key: 'gridOut', 
+      key: 'gridOutWh', 
       label: 'Grid Export', 
       color: 'text-purple-400',
       icon: <ArrowLeft className="w-4 h-4 text-purple-400" />
     },
     { 
-      key: 'load', 
+      key: 'loadWh', 
       label: 'Load Consumed', 
       color: 'text-orange-400',
       icon: <Home className="w-4 h-4 text-orange-400" />
     }
   ];
 
-  // Filter to only show rows where at least one device has data
-  const visibleEnergyTypes = energyTypes.filter(type => 
-    devices.some(device => {
+  // Filter to only show rows where at least one device OR site has data
+  const visibleEnergyTypes = energyTypes.filter(type => {
+    // Check if any device has data for this type
+    const hasDeviceData = devices.some(device => {
       const value = device.energyCounters?.[type.key as keyof EnergyCounters];
       return value !== undefined && value !== null;
-    })
-  );
+    });
+    
+    // Check if site has data for this type
+    const hasSiteData = siteEnergy && siteEnergy[type.key as keyof EnergyCounters] !== undefined && siteEnergy[type.key as keyof EnergyCounters] !== null;
+    
+    return hasDeviceData || hasSiteData;
+  });
 
   if (visibleEnergyTypes.length === 0) {
     return null;
   }
 
-  // Get site total for each energy type
+  // Get site total for each energy type (from site object, not sum)
   const getSiteTotal = (key: keyof EnergyCounters) => {
     if (!siteEnergy) {
-      // Fallback to summing device values if site energy not available
-      return devices.reduce((sum, device) => {
-        const value = device.energyCounters?.[key];
-        return sum + (value !== undefined && value !== null ? value : 0);
-      }, 0);
+      return undefined;
     }
-    return siteEnergy[key] || 0;
+    return siteEnergy[key];
   };
 
   return (
@@ -104,15 +107,15 @@ export default function EnergyTable({ devices, siteEnergy }: EnergyTableProps) {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-gray-700">
-              <th className="text-left py-2 px-3 text-gray-400 font-medium">Type</th>
+              <th className="text-left py-1 px-3 text-gray-400 font-medium">Type</th>
               {devices.map(device => (
-                <th key={device.ip} className="text-right py-2 px-3 text-gray-400 font-medium min-w-[100px]">
+                <th key={device.ip} className="text-right py-1 px-3 text-gray-400 font-medium min-w-[100px]">
                   {device.name}
                 </th>
               ))}
-              {devices.length > 1 && (
-                <th className="text-right py-2 px-3 text-gray-400 font-medium min-w-[100px] border-l border-gray-700">
-                  Total
+              {(devices.length > 1 || visibleEnergyTypes.some(t => t.key === 'loadWh')) && (
+                <th className="text-right py-1 px-3 text-gray-400 font-medium min-w-[100px] border-l border-gray-700">
+                  Site
                 </th>
               )}
             </tr>
@@ -120,7 +123,7 @@ export default function EnergyTable({ devices, siteEnergy }: EnergyTableProps) {
           <tbody>
             {visibleEnergyTypes.map((type, index) => (
               <tr key={type.key} className={index < visibleEnergyTypes.length - 1 ? "border-b border-gray-800" : ""}>
-                <td className="py-2 px-3">
+                <td className="py-1 px-3">
                   <div className="flex items-center space-x-2">
                     {type.icon}
                     <span className="text-gray-300">{type.label}</span>
@@ -129,15 +132,15 @@ export default function EnergyTable({ devices, siteEnergy }: EnergyTableProps) {
                 {devices.map(device => {
                   const value = device.energyCounters?.[type.key as keyof EnergyCounters];
                   // For load, show dash for individual inverters (load is site-level only)
-                  const displayValue = type.key === 'load' ? undefined : value;
+                  const displayValue = type.key === 'loadWh' ? undefined : value;
                   return (
-                    <td key={device.ip} className={`text-right py-2 px-3 ${type.color} font-mono font-medium`}>
+                    <td key={device.ip} className={`text-right py-1 px-3 ${type.color} font-mono font-medium`}>
                       {formatEnergy(displayValue)}
                     </td>
                   );
                 })}
-                {devices.length > 1 && (
-                  <td className={`text-right py-2 px-3 ${type.color} font-mono font-bold border-l border-gray-700`}>
+                {(devices.length > 1 || visibleEnergyTypes.some(t => t.key === 'loadWh')) && (
+                  <td className={`text-right py-1 px-3 ${type.color} font-mono font-bold border-l border-gray-700`}>
                     {formatEnergy(getSiteTotal(type.key as keyof EnergyCounters))}
                   </td>
                 )}

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDeviceManager } from '@/lib/device-manager';
+import { getSite } from '@/lib/site';
 
 export const runtime = 'nodejs';
 
@@ -9,9 +9,9 @@ export async function POST(request: NextRequest) {
     const action = body.action;
     
     if (action === 'scan') {
-      const deviceManager = getDeviceManager();
+      const site = getSite();
       // Don't await - let it run in background
-      deviceManager.scanDevices();
+      site.scanForDevices();
       
       return NextResponse.json({
         success: true,

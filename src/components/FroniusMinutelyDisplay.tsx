@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ChevronRight, ChevronDown, Sun, Battery, Home, Zap } from 'lucide-react';
 import { FroniusMinutely } from '@/types/fronius';
 
@@ -10,6 +10,29 @@ interface FroniusMinutelyDisplayProps {
 
 export default function FroniusMinutelyDisplay({ history }: FroniusMinutelyDisplayProps) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [highlightedTimestamp, setHighlightedTimestamp] = useState<string | null>(null);
+  const previousFirstTimestamp = useRef<string | null>(null);
+
+  useEffect(() => {
+    // Check if we have a new entry
+    if (history.length > 0) {
+      const currentFirst = history[0].timestamp;
+      
+      // If this is different from the previous first entry, highlight it
+      if (previousFirstTimestamp.current && previousFirstTimestamp.current !== currentFirst) {
+        setHighlightedTimestamp(currentFirst);
+        
+        // Remove highlight after 10 seconds (5s bright + 5s fade)
+        const timer = setTimeout(() => {
+          setHighlightedTimestamp(null);
+        }, 10000);
+        
+        return () => clearTimeout(timer);
+      }
+      
+      previousFirstTimestamp.current = currentFirst;
+    }
+  }, [history]);
 
   const formatTimestamp = (timestamp: string) => {
     try {
@@ -65,7 +88,30 @@ export default function FroniusMinutelyDisplay({ history }: FroniusMinutelyDispl
   };
 
   return (
-    <div className="mt-4">
+    <>
+      <style jsx>{`
+        @keyframes textHighlightFade {
+          0% {
+            color: rgba(229, 231, 235, 0.95);
+          }
+          50% {
+            color: rgba(229, 231, 235, 0.95);
+          }
+          100% {
+            color: rgba(229, 231, 235, 0.6);
+          }
+        }
+        
+        .animate-highlight td {
+          animation: textHighlightFade 10s ease-out;
+          animation-fill-mode: forwards;
+        }
+        
+        tr:not(.animate-highlight) td {
+          color: rgba(229, 231, 235, 0.6);
+        }
+      `}</style>
+      <div className="mt-4">
       <button
         onClick={() => setIsExpanded(!isExpanded)}
         className="flex items-center space-x-2 text-gray-400 hover:text-gray-300 transition-colors w-full"
@@ -113,47 +159,56 @@ export default function FroniusMinutelyDisplay({ history }: FroniusMinutelyDispl
               </tr>
             </thead>
             <tbody>
-              {history.slice().reverse().slice(0, 10).map((report, index) => (
-                <tr key={index} className={index > 0 ? "border-t border-gray-800" : ""}>
-                  <td className="py-1 pr-4 text-gray-200 font-mono text-sm">
+              {history.slice(0, 10).map((report, index) => {
+                const isHighlighted = report.timestamp === highlightedTimestamp;
+                const rowClass = `${
+                  index > 0 ? "border-t border-gray-800" : ""
+                } ${
+                  isHighlighted ? "animate-highlight" : ""
+                }`;
+                
+                return (
+                  <tr key={report.timestamp} className={rowClass}>
+                    <td className="py-1 pr-4  font-mono text-sm">
                     {formatTimestamp(report.timestamp)}
                   </td>
                   {/* Solar */}
-                  <td className="py-1 px-1 text-right text-gray-200 font-mono text-sm">
+                  <td className="py-1 px-1 text-right  font-mono text-sm">
                     {formatPowerValue(report.solarW)}
                   </td>
-                  <td className="py-1 px-1 text-right text-gray-200 font-mono text-sm">
+                  <td className="py-1 px-1 text-right  font-mono text-sm">
                     {formatEnergyValue(report.solarIntervalWh)}
                   </td>
                   <td className="w-4"></td>
                   {/* Battery */}
-                  <td className="py-1 px-1 text-right text-gray-200 font-mono text-sm">
+                  <td className="py-1 px-1 text-right  font-mono text-sm">
                     {formatBatteryPower(report.batteryW)}
                   </td>
-                  <td className="py-1 px-1 text-right text-gray-200 font-mono text-sm">
+                  <td className="py-1 px-1 text-right  font-mono text-sm">
                     {formatBatteryEnergy(report.batteryInIntervalWh, report.batteryOutIntervalWh)}
                   </td>
-                  <td className="py-1 px-1 text-right text-gray-200 font-mono text-sm">
+                  <td className="py-1 px-1 text-right  font-mono text-sm">
                     {report.batterySOC !== null ? report.batterySOC.toFixed(1) : '—'}
                   </td>
                   <td className="w-4"></td>
                   {/* Load */}
-                  <td className="py-1 px-1 text-right text-gray-200 font-mono text-sm">
+                  <td className="py-1 px-1 text-right  font-mono text-sm">
                     {formatPowerValue(report.loadW)}
                   </td>
-                  <td className="py-1 px-1 text-right text-gray-200 font-mono text-sm">
+                  <td className="py-1 px-1 text-right  font-mono text-sm">
                     {formatEnergyValue(report.loadIntervalWh)}
                   </td>
                   <td className="w-4"></td>
                   {/* Grid */}
-                  <td className="py-1 px-1 text-right text-gray-200 font-mono text-sm">
+                  <td className="py-1 px-1 text-right  font-mono text-sm">
                     {formatGridPower(report.gridW)}
                   </td>
-                  <td className="py-1 px-1 text-right text-gray-200 font-mono text-sm">
+                  <td className="py-1 px-1 text-right  font-mono text-sm">
                     {formatGridEnergy(report.gridInIntervalWh, report.gridOutIntervalWh)}
                   </td>
                 </tr>
-              ))}
+              );
+              })}
             </tbody>
           </table>
           <div className="mt-2 text-xs text-gray-500">
@@ -162,5 +217,6 @@ export default function FroniusMinutelyDisplay({ history }: FroniusMinutelyDispl
         </div>
       )}
     </div>
+    </>
   );
 }

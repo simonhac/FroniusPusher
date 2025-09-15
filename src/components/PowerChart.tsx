@@ -28,32 +28,18 @@ ChartJS.register(
   Filler
 );
 
-interface DataPoint {
-  timestamp: Date;
-  solar?: number;
-  battery?: number;
-  grid?: number;
-  load?: number;
-  soc?: number;
-}
-
-interface DeviceData {
-  ip: string;
-  name: string;
-  data: DataPoint[];
-}
-
 interface PowerChartProps {
-  devices: DeviceData[];
+  historicalData: any[];
+  devices: any[];
 }
 
-export default function PowerChart({ devices }: PowerChartProps) {
+export default function PowerChart({ historicalData, devices }: PowerChartProps) {
   const chartRef = useRef<any>(null);
+  const timePointsRef = useRef<Date[]>([]);
 
-  // Get the most recent timestamp across all devices or use current time
-  const allData = devices.flatMap(d => d.data);
-  const latestTimestamp = allData.length > 0 
-    ? new Date(Math.max(...allData.map(d => d.timestamp.getTime())))
+  // Get the most recent timestamp from historical data or use current time
+  const latestTimestamp = historicalData.length > 0 
+    ? new Date(historicalData[historicalData.length - 1].timestamp)
     : new Date();
   
   // Calculate 10 minutes ago from the latest timestamp
@@ -65,18 +51,21 @@ export default function PowerChart({ devices }: PowerChartProps) {
   for (let time = tenMinutesAgo.getTime(); time <= latestTimestamp.getTime(); time += 2000) {
     const date = new Date(time);
     timePoints.push(date);
-    timeLabels.push(format(date, 'HH:mm:ss'));
+    timeLabels.push(format(date, 'h:mm a'));
   }
   
-  // Map data to the complete time series
-  const mapDataToTimeSeries = (dataPoints: DataPoint[], getValue: (point: DataPoint) => number | undefined) => {
+  // Store timePoints in ref for use in callbacks
+  timePointsRef.current = timePoints;
+  
+  // Map power update events to the complete time series
+  const mapDataToTimeSeries = (serialNumber: string, getValue: (deviceData: any) => number | undefined) => {
     return timePoints.map(time => {
-      const point = dataPoints.find(p => 
-        Math.abs(p.timestamp.getTime() - time.getTime()) < 1000  // Allow 1 second tolerance for 2-second intervals
+      const event = historicalData.find(e => 
+        Math.abs(new Date(e.timestamp).getTime() - time.getTime()) < 1000  // Allow 1 second tolerance
       );
-      if (point) {
-        const value = getValue(point);
-        return value !== undefined ? value / 1000 : null;
+      if (event && event[serialNumber]) {
+        const value = getValue(event[serialNumber]);
+        return value !== undefined && value !== null ? value / 1000 : null;
       }
       return null;
     });
@@ -85,61 +74,46 @@ export default function PowerChart({ devices }: PowerChartProps) {
   // Prepare chart data (convert W to kW)
   const datasets: any[] = [];
   
-  // Calculate combined totals for battery, load, and grid first
-  const combinedBattery = timePoints.map(time => {
-    let total = 0;
-    let hasData = false;
-    devices.forEach(device => {
-      const point = device.data.find(p => 
-        Math.abs(p.timestamp.getTime() - time.getTime()) < 1000
-      );
-      if (point?.battery !== undefined) {
-        total += point.battery;
-        hasData = true;
-      }
-    });
-    return hasData ? total / 1000 : null;
+  // Get site-level data from power update events
+  const siteLoad = timePoints.map(time => {
+    const event = historicalData.find(e => 
+      Math.abs(new Date(e.timestamp).getTime() - time.getTime()) < 1000
+    );
+    if (event?.site?.load?.powerW !== undefined && event.site.load.powerW !== null) {
+      return event.site.load.powerW / 1000;
+    }
+    return null;
   });
   
-  const combinedGrid = timePoints.map(time => {
-    let total = 0;
-    let hasData = false;
-    devices.forEach(device => {
-      const point = device.data.find(p => 
-        Math.abs(p.timestamp.getTime() - time.getTime()) < 1000
-      );
-      if (point?.grid !== undefined) {
-        total += point.grid;
-        hasData = true;
-      }
-    });
-    return hasData ? total / 1000 : null;
+  const siteGrid = timePoints.map(time => {
+    const event = historicalData.find(e => 
+      Math.abs(new Date(e.timestamp).getTime() - time.getTime()) < 1000
+    );
+    if (event?.site?.grid?.powerW !== undefined && event.site.grid.powerW !== null) {
+      return event.site.grid.powerW / 1000;
+    }
+    return null;
   });
   
-  const combinedLoad = timePoints.map(time => {
-    let total = 0;
-    let hasData = false;
-    devices.forEach(device => {
-      const point = device.data.find(p => 
-        Math.abs(p.timestamp.getTime() - time.getTime()) < 1000
-      );
-      if (point?.load !== undefined) {
-        total += Math.abs(point.load);
-        hasData = true;
-      }
-    });
-    return hasData ? total / 1000 : null;
+  const siteBattery = timePoints.map(time => {
+    const event = historicalData.find(e => 
+      Math.abs(new Date(e.timestamp).getTime() - time.getTime()) < 1000
+    );
+    if (event?.site?.battery?.powerW !== undefined && event.site.battery.powerW !== null) {
+      return event.site.battery.powerW / 1000;
+    }
+    return null;
   });
   
-  // Add datasets in order for legend: Solar, Battery, Load, Grid
-  // First add solar datasets
+  // Add datasets in order for legend: Solar, Battery, Grid, Load
+  // First add solar datasets for each device
   const solarColors = ['rgba(255, 235, 59, 0.2)', 'rgba(255, 241, 118, 0.2)', 'rgba(255, 249, 196, 0.2)'];
   devices.forEach((device, index) => {
-    const filteredData = device.data.filter(point => point.timestamp >= tenMinutesAgo);
-    if (filteredData.some(p => p.solar !== undefined)) {
+    const solarData = mapDataToTimeSeries(device.serialNumber, data => data.solar?.powerW);
+    if (solarData.some(val => val !== null)) {
       datasets.push({
-        label: `Solar ${device.name}`,
-        data: mapDataToTimeSeries(filteredData, point => point.solar),
+        label: `Solar ${device.name || device.serialNumber}`,
+        data: solarData,
         borderColor: solarColors[index % solarColors.length].replace('0.2', '0.6'),
         backgroundColor: solarColors[index % solarColors.length],
         borderWidth: 1,
@@ -154,11 +128,11 @@ export default function PowerChart({ devices }: PowerChartProps) {
     }
   });
   
-  // Then add Battery
-  if (combinedBattery.some(val => val !== null)) {
+  // Then add site-level Battery
+  if (siteBattery.some(val => val !== null)) {
     datasets.push({
       label: 'Battery',
-      data: combinedBattery,
+      data: siteBattery,
       borderColor: 'rgb(59, 130, 246)',
       backgroundColor: 'rgba(59, 130, 246, 0.1)',
       borderWidth: 2,
@@ -170,27 +144,11 @@ export default function PowerChart({ devices }: PowerChartProps) {
     });
   }
   
-  // Then add Load
-  if (combinedLoad.some(val => val !== null)) {
-    datasets.push({
-      label: 'Load',
-      data: combinedLoad,
-      borderColor: 'rgb(249, 115, 22)',
-      backgroundColor: 'rgba(249, 115, 22, 0.1)',
-      borderWidth: 2,
-      tension: 0.1,
-      pointRadius: 0,
-      pointHoverRadius: 4,
-      spanGaps: true,
-      order: 3 // Load third in legend
-    });
-  }
-  
-  // Finally add Grid
-  if (combinedGrid.some(val => val !== null)) {
+  // Then add site-level Grid
+  if (siteGrid.some(val => val !== null)) {
     datasets.push({
       label: 'Grid',
-      data: combinedGrid,
+      data: siteGrid,
       borderColor: 'rgb(147, 51, 234)',
       backgroundColor: 'rgba(147, 51, 234, 0.1)',
       borderWidth: 2,
@@ -198,7 +156,23 @@ export default function PowerChart({ devices }: PowerChartProps) {
       pointRadius: 0,
       pointHoverRadius: 4,
       spanGaps: true,
-      order: 4 // Grid last in legend
+      order: 3 // Grid third in legend
+    });
+  }
+  
+  // Finally add site-level Load
+  if (siteLoad.some(val => val !== null)) {
+    datasets.push({
+      label: 'Load',
+      data: siteLoad,
+      borderColor: 'rgb(249, 115, 22)',
+      backgroundColor: 'rgba(249, 115, 22, 0.1)',
+      borderWidth: 2,
+      tension: 0.1,
+      pointRadius: 0,
+      pointHoverRadius: 4,
+      spanGaps: true,
+      order: 4 // Load last in legend
     });
   }
   
@@ -210,6 +184,9 @@ export default function PowerChart({ devices }: PowerChartProps) {
   const options: ChartOptions<'line'> = {
     responsive: true,
     maintainAspectRatio: false,
+    animation: {
+      duration: 0 // Disable animations for smoother real-time updates
+    },
     interaction: {
       mode: 'index' as const,
       intersect: false,
@@ -249,94 +226,120 @@ export default function PowerChart({ devices }: PowerChartProps) {
           display: false
         },
         ticks: {
+          color: 'rgb(107, 114, 128)',
           maxTicksLimit: 10,
-          maxRotation: 0,
-          font: {
-            size: 15,  // Increased by 50% from 10
-            family: 'DM Sans, sans-serif'
-          },
-          color: 'rgb(156, 163, 175)',
           callback: function(value, index, values) {
-            // Show every 60th label (approximately every minute if data points are every second)
-            // Or show first and last labels
-            const label = this.getLabelForValue(value as number);
-            if (index === 0 || index === values.length - 1 || index % 60 === 0) {
-              // Return HH:mm format
-              return label ? label.substring(0, 5) : '';
+            const date = timePointsRef.current[index];
+            if (!date) return '';
+            
+            // Show label at the minute mark (:00 seconds)
+            if (date.getSeconds() === 0) {
+              return format(date, 'h:mm');
             }
+            
+            // Also show labels at reasonable intervals to avoid empty axis
+            if (values.length <= 10) {
+              // Show all labels when few points
+              return format(date, 'h:mm');
+            } else if (index % 30 === 0) {
+              // Show every minute when many points
+              return format(date, 'h:mm');
+            }
+            
             return '';
-          },
-          autoSkip: false
+          }
         },
         grid: {
           display: true,
-          color: 'rgba(255, 255, 255, 0.1)'
+          color: function(context) {
+            if (context.index === undefined || context.index === null) return 'transparent';
+            
+            const date = timePointsRef.current[context.index];
+            if (!date) return 'transparent';
+            
+            // Show grid line every minute (when seconds === 0)
+            // Use a visible color for minute marks, transparent for others
+            return date.getSeconds() === 0 ? 'rgba(107, 114, 128, 0.3)' : 'transparent';
+          },
+          drawBorder: false,
+          drawTicks: false
         }
       },
       y: {
         display: true,
+        position: 'left' as const,
+        // Determine min based on whether there's battery data
+        min: siteBattery.some(val => val !== null) ? -1 : 0,
+        max: 5, // Always show at least 5kW
         title: {
-          display: false
-        },
-        // Set minimum to -1 if we have battery data, but allow it to go lower if needed
-        suggestedMin: combinedBattery.some(val => val !== null) ? -1.0 : undefined,
-        ticks: {
-          stepSize: 1.0,  // Force ticks at multiples of 1.0 kW
-          font: {
-            size: 15,  // Increased by 50% from 10
-            family: 'DM Sans, sans-serif'
-          },
+          display: true,
+          text: 'Power (kW)',
           color: 'rgb(156, 163, 175)',
-          callback: function(value, index, values) {
-            const roundedValue = Math.round(value as number);
-            // Only add 'kW' to the top label (last in the array)
-            if (index === values.length - 1) {
-              return roundedValue + ' kW';
+          font: {
+            family: 'DM Sans, sans-serif',
+            size: 12
+          }
+        },
+        ticks: {
+          color: 'rgb(107, 114, 128)',
+          stepSize: 1, // Force integer steps
+          callback: function(value, index, ticks) {
+            // Only show 'kW' on the top (last) label
+            if (index === ticks.length - 1) {
+              return value + ' kW';
             }
-            return roundedValue.toString();
+            // Show integer values only
+            return Number.isInteger(value as number) ? value.toString() : '';
           }
         },
         grid: {
-          color: (context) => {
-            // Make the zero line thicker and more visible
-            if (context.tick.value === 0) {
-              return 'rgba(255, 255, 255, 0.3)';
-            }
-            return 'rgba(255, 255, 255, 0.1)';
-          },
-          lineWidth: (context) => {
-            // Triple thickness for zero line
-            if (context.tick.value === 0) {
-              return 3;
-            }
-            return 1;
-          }
+          color: 'rgba(107, 114, 128, 0.1)',
+          drawBorder: false
         }
       }
-    },
-    animation: {
-      duration: 0
     }
   };
 
-  // Update chart when data changes
+  // Update chart when new data arrives - update data directly instead of full re-render
   useEffect(() => {
-    if (chartRef.current) {
-      chartRef.current.update('none');
+    if (chartRef.current && chartRef.current.data) {
+      const chart = chartRef.current;
+      
+      // Update labels
+      chart.data.labels = timeLabels;
+      
+      // Update existing datasets without replacing them
+      datasets.forEach((newDataset, index) => {
+        if (chart.data.datasets[index]) {
+          // Update existing dataset's data only, preserving all other properties including hidden state
+          chart.data.datasets[index].data = newDataset.data;
+        } else {
+          // Add new dataset if it doesn't exist
+          chart.data.datasets.push(newDataset);
+        }
+      });
+      
+      // Remove extra datasets if needed
+      while (chart.data.datasets.length > datasets.length) {
+        chart.data.datasets.pop();
+      }
+      
+      // Update without animation for smooth updates
+      chart.update('none');
     }
-  }, [devices]);
+  }, [timeLabels, datasets]);
 
-  if (allData.length === 0) {
+  if (datasets.length === 0) {
     return (
       <div className="h-64 flex items-center justify-center bg-transparent rounded-lg">
-        <p className="text-gray-500">Collecting data...</p>
+        <p className="text-gray-500">Waiting for data...</p>
       </div>
     );
   }
 
   return (
-    <div className="h-64 bg-transparent rounded-lg">
-      <Line ref={chartRef} options={options} data={chartData} />
+    <div className="h-64">
+      <Line ref={chartRef} data={chartData} options={options} />
     </div>
   );
 }

@@ -1,7 +1,16 @@
 import { NextRequest } from 'next/server';
-import { getDeviceManager } from '@/lib/device-manager';
+import { getSite } from '@/lib/site';
+import { formatLocalDateTime } from '@/lib/date-utils';
 
 export const runtime = 'nodejs';
+
+// JSON replacer function to format dates
+const dateReplacer = (key: string, value: any) => {
+  if (value instanceof Date) {
+    return formatLocalDateTime(value);
+  }
+  return value;
+};
 
 export async function GET(request: NextRequest) {
   const encoder = new TextEncoder();
@@ -10,49 +19,42 @@ export async function GET(request: NextRequest) {
 
   const stream = new ReadableStream({
     start(controller) {
-      const deviceManager = getDeviceManager();
+      const site = getSite();
       
       // Send initial connection
       controller.enqueue(encoder.encode(': connected\n\n'));
       
-      // Send current device list immediately
-      const devices = deviceManager.getDevices();
+      // Send site info immediately (includes devices)
+      const siteInfo = site.getSiteInfo();
       controller.enqueue(
-        encoder.encode(`event: devices\ndata: ${JSON.stringify(devices)}\n\n`)
+        encoder.encode(`event: siteUpdate\ndata: ${JSON.stringify(siteInfo, dateReplacer)}\n\n`)
       );
       
-      // Send site info immediately
-      const siteInfo = deviceManager.getSiteInfo();
+      // Send the most recent site metrics so tiles can render immediately
+      const latestSiteMetrics = site.getLatestSiteMetrics();
+      if (latestSiteMetrics) {
+        controller.enqueue(
+          encoder.encode(`event: siteMetrics\ndata: ${JSON.stringify(latestSiteMetrics, dateReplacer)}\n\n`)
+        );
+      }
+      
+      // Send high-resolution historical data for charts
+      const hiresHistory = site.getHistoricalData();
       controller.enqueue(
-        encoder.encode(`event: siteUpdate\ndata: ${JSON.stringify(siteInfo)}\n\n`)
+        encoder.encode(`event: hiresHistory\ndata: ${JSON.stringify(hiresHistory, dateReplacer)}\n\n`)
       );
       
-      // Listen for device updates
-      const handleDevicesUpdated = (updatedDevices: any[]) => {
-        if (isConnected) {
-          controller.enqueue(
-            encoder.encode(`event: devices\ndata: ${JSON.stringify(updatedDevices)}\n\n`)
-          );
-        }
-      };
+      // Send minutely history (FroniusMinutely reports)
+      const minutelyHistory = site.getFroniusMinutelyHistory();
+      controller.enqueue(
+        encoder.encode(`event: minutelyHistory\ndata: ${JSON.stringify(minutelyHistory, dateReplacer)}\n\n`)
+      );
       
-      // Listen for individual device data updates
-      const handleDeviceDataUpdated = (update: any) => {
+      // Listen for site updates (sent after scanning completes)
+      const handleSiteUpdate = (siteInfo: any) => {
         if (isConnected) {
-          // Include energy counters with the update
-          const energyCounters = deviceManager.getFormattedEnergyCounters(update.serialNumber);
-          const updateWithEnergy = {
-            ...update,
-            energyCounters
-          };
           controller.enqueue(
-            encoder.encode(`event: deviceData\ndata: ${JSON.stringify(updateWithEnergy)}\n\n`)
-          );
-          
-          // Also send updated site info
-          const siteInfo = deviceManager.getSiteInfo();
-          controller.enqueue(
-            encoder.encode(`event: siteUpdate\ndata: ${JSON.stringify(siteInfo)}\n\n`)
+            encoder.encode(`event: siteUpdate\ndata: ${JSON.stringify(siteInfo, dateReplacer)}\n\n`)
           );
         }
       };
@@ -61,7 +63,7 @@ export async function GET(request: NextRequest) {
       const handleScanStatus = (status: any) => {
         if (isConnected) {
           controller.enqueue(
-            encoder.encode(`event: scanStatus\ndata: ${JSON.stringify(status)}\n\n`)
+            encoder.encode(`event: scanStatus\ndata: ${JSON.stringify(status, dateReplacer)}\n\n`)
           );
         }
       };
@@ -70,16 +72,35 @@ export async function GET(request: NextRequest) {
       const handleFroniusMinutely = (data: any) => {
         if (isConnected) {
           controller.enqueue(
-            encoder.encode(`event: froniusMinutely\ndata: ${JSON.stringify(data)}\n\n`)
+            encoder.encode(`event: froniusMinutely\ndata: ${JSON.stringify(data, dateReplacer)}\n\n`)
+          );
+        }
+      };
+      
+      // Listen for inverter heartbeat updates
+      const handleInverterHeartbeat = (data: any) => {
+        if (isConnected) {
+          controller.enqueue(
+            encoder.encode(`event: inverterHeartbeat\ndata: ${JSON.stringify(data, dateReplacer)}\n\n`)
+          );
+        }
+      };
+      
+      // Listen for site metrics events
+      const handleSiteMetrics = (data: any) => {
+        if (isConnected) {
+          controller.enqueue(
+            encoder.encode(`event: siteMetrics\ndata: ${JSON.stringify(data, dateReplacer)}\n\n`)
           );
         }
       };
       
       // Register event listeners
-      deviceManager.on('devicesUpdated', handleDevicesUpdated);
-      deviceManager.on('deviceDataUpdated', handleDeviceDataUpdated);
-      deviceManager.on('scanStatus', handleScanStatus);
-      deviceManager.on('froniusMinutely', handleFroniusMinutely);
+      site.on('siteUpdate', handleSiteUpdate);
+      site.on('scanStatus', handleScanStatus);
+      site.on('froniusMinutely', handleFroniusMinutely);
+      site.on('inverterHeartbeat', handleInverterHeartbeat);
+      site.on('siteMetrics', handleSiteMetrics);
       
       // Keep connection alive with heartbeat
       intervalId = setInterval(() => {
@@ -92,10 +113,11 @@ export async function GET(request: NextRequest) {
       request.signal.addEventListener('abort', () => {
         isConnected = false;
         clearInterval(intervalId);
-        deviceManager.removeListener('devicesUpdated', handleDevicesUpdated);
-        deviceManager.removeListener('deviceDataUpdated', handleDeviceDataUpdated);
-        deviceManager.removeListener('scanStatus', handleScanStatus);
-        deviceManager.removeListener('froniusMinutely', handleFroniusMinutely);
+        site.removeListener('siteUpdate', handleSiteUpdate);
+        site.removeListener('scanStatus', handleScanStatus);
+        site.removeListener('froniusMinutely', handleFroniusMinutely);
+        site.removeListener('inverterHeartbeat', handleInverterHeartbeat);
+        site.removeListener('siteMetrics', handleSiteMetrics);
         controller.close();
       });
     },

@@ -5,16 +5,16 @@ import { formatDistance } from 'date-fns';
 import dynamic from 'next/dynamic';
 import { 
   Home as HomeIcon, 
-  Sun, 
-  Battery, 
-  Zap, 
   Search, 
   ExternalLink,
   Star,
   Circle
 } from 'lucide-react';
 import { FroniusMinutely } from '@/types/fronius';
+import { DeviceInfo } from '@/types/device';
 import FroniusMinutelyDisplay from '@/components/FroniusMinutelyDisplay';
+import PowerCard from '@/components/PowerCard';
+import HealthIndicator from '@/components/HealthIndicator';
 
 const PowerChart = dynamic(() => import('@/components/PowerChart'), { 
   ssr: false,
@@ -33,33 +33,34 @@ interface FroniusDevice {
   hostname?: string;
   isMaster: boolean;
   serialNumber: string;
-  data?: any;
-  info?: {
-    CustomName?: string;
-    DT?: number;
-    StatusCode?: number;
-    manufacturer?: string;
-    model?: string;
-  };
+  info?: DeviceInfo;
+  power?: {
+    solarW?: number;
+    batteryW?: number;
+    gridW?: number;
+    batterySoC?: number;
+  } | null;
   lastUpdated?: string;
   lastDataFetch?: string;
+  name?: string;
 }
 
 interface SiteInfo {
   name: string;
-  powerW: {
-    solar: number | null;
-    battery: number;
-    grid: number;
-    load: number | null;
+  devices: FroniusDevice[];
+  power: {
+    solarW: number | null;
+    batteryW: number | null;
+    gridW: number | null;
+    loadW: number | null;
   };
-  energyKwh: {
-    solar: number;
-    batteryIn: number;
-    batteryOut: number;
-    gridIn: number;
-    gridOut: number;
-    load: number;
+  energy: {
+    solarWh: number;
+    batteryInWh: number;
+    batteryOutWh: number;
+    gridInWh: number;
+    gridOutWh: number;
+    loadWh: number;
   };
   batterySOC: number | null;
   hasFault: boolean;
@@ -76,24 +77,12 @@ export default function Home() {
   const [connected, setConnected] = useState(false);
   const eventSourceRef = useRef<EventSource | null>(null);
   const [, forceUpdate] = useState({});
-  const [historicalData, setHistoricalData] = useState<Map<string, any[]>>(new Map());
-  const [isScanning, setIsScanning] = useState<boolean | null>(null);
+  const [historicalData, setHistoricalData] = useState<any[]>([]);
+  const [isScanning, setIsScanning] = useState<boolean>(false);
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
-  const [energyCounters, setEnergyCounters] = useState<Map<string, any>>(new Map());
+  const [latestSiteMetrics, setLatestSiteMetrics] = useState<any>(null);
 
   // Initialise SSE connection
-  // Fetch initial FroniusMinutely history on page load
-  useEffect(() => {
-    fetch('/api/pushes')
-      .then(res => res.json())
-      .then(result => {
-        if (result.success && result.data) {
-          setFroniusMinutelyHistory(result.data);
-        }
-      })
-      .catch(err => console.error('Failed to fetch FroniusMinutely history:', err));
-  }, []);
-
   useEffect(() => {
     const connectSSE = () => {
       // Close any existing connection
@@ -122,29 +111,34 @@ export default function Home() {
         }, 5000);
       };
 
-      // Handle device list updates
-      eventSource.addEventListener('devices', (event) => {
-        const updatedDevices = JSON.parse(event.data);
-        setDevices(updatedDevices);
-        setLastUpdate(new Date());
-        setInitialLoadComplete(true);
+      // Handle high-resolution history to prepopulate the chart
+      eventSource.addEventListener('hiresHistory', (event) => {
+        const history = JSON.parse(event.data);
+        console.log('Received hi-res history for chart prepopulation:', history);
         
-        // Update selected device if it exists in the new list
-        if (selectedDevice) {
-          const updated = updatedDevices.find((d: FroniusDevice) => d.ip === selectedDevice.ip);
-          if (updated) {
-            setSelectedDevice(updated);
-          }
-        }
+        // History is now simply an array of siteMetrics objects
+        // Just set it directly
+        setHistoricalData(history);
       });
+      
+      // Handle minutely history (FroniusMinutely reports)
+      eventSource.addEventListener('minutelyHistory', (event) => {
+        const history = JSON.parse(event.data);
+        setFroniusMinutelyHistory(history);
+        console.log('Received minutely history:', history);
+      });
+      
+      // No longer needed - devices come with siteUpdate
+      // eventSource.addEventListener('devices', ...) removed
 
       // Handle scan status updates
       eventSource.addEventListener('scanStatus', (event) => {
+        console.log('Raw scanStatus event:', event.data);
         const status = JSON.parse(event.data);
         
-        if (status.status === 'started' || status.status === 'scanning') {
+        if (status.state === 'SCANNING') {
           setIsScanning(true);
-        } else if (status.status === 'completed' || status.status === 'error') {
+        } else if (status.state === 'IDLE') {
           setIsScanning(false);
         }
       });
@@ -164,70 +158,54 @@ export default function Home() {
       // Handle site updates
       eventSource.addEventListener('siteUpdate', (event) => {
         const site = JSON.parse(event.data);
+        console.log('Received siteUpdate:', site);
         setSiteInfo(site);
+        
+        // Extract devices from site info
+        if (site.devices) {
+          setDevices(site.devices);
+          setLastUpdate(new Date());
+          setInitialLoadComplete(true);
+          
+          // Energy counters are now in powerUpdate events
+          
+          // Update selected device if it exists in the new list
+          if (selectedDevice) {
+            const updated = site.devices.find((d: FroniusDevice) => d.ip === selectedDevice.ip);
+            if (updated) {
+              setSelectedDevice(updated);
+            }
+          }
+        }
       });
 
-      // Handle individual device data updates
-      eventSource.addEventListener('deviceData', (event) => {
-        const update = JSON.parse(event.data);
-        
-        // Update the specific device's data
-        setDevices(prevDevices => 
-          prevDevices.map(device => 
-            device.ip === update.ip 
-              ? { ...device, data: update.data, lastDataFetch: update.timestamp }
-              : device
-          )
-        );
-        
-        // Update selected device if it's the one being updated
-        if (selectedDevice?.ip === update.ip) {
-          setSelectedDevice(prev => prev ? { ...prev, data: update.data, lastDataFetch: update.timestamp } : null);
-        }
-        
-        // Store energy counters (use serialNumber if available, fallback to ip)
-        if (update.energyCounters) {
-          setEnergyCounters(prev => {
-            const newMap = new Map(prev);
-            const key = update.serialNumber || update.ip;
-            newMap.set(key, update.energyCounters);
-            return newMap;
-          });
-        }
-        
-        // Store historical data for charts
-        if (update.data?.Body?.Data?.Site) {
-          const site = update.data.Body.Data.Site;
-          const inverters = update.data.Body.Data.Inverters;
-          const firstInverter = inverters && Object.values(inverters)[0] as any;
-          
-          const dataPoint = {
-            timestamp: new Date(update.timestamp),
-            solar: site.P_PV ?? undefined,
-            battery: site.P_Akku ?? undefined,
-            grid: site.P_Grid ?? undefined,
-            load: site.P_Load ?? undefined,
-            soc: firstInverter?.SOC ?? undefined
-          };
-          
-          setHistoricalData(prev => {
-            const newMap = new Map(prev);
-            const deviceHistory = newMap.get(update.ip) || [];
-            
-            // Add new data point
-            deviceHistory.push(dataPoint);
-            
-            // Keep only last 15 minutes of data
-            const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000);
-            const filteredHistory = deviceHistory.filter(point => point.timestamp >= fifteenMinutesAgo);
-            
-            newMap.set(update.ip, filteredHistory);
-            return newMap;
-          });
-        }
-        
-        setLastUpdate(new Date(update.timestamp));
+      // Handle inverter heartbeat events (sent on each poll)
+      eventSource.addEventListener('inverterHeartbeat', (event) => {
+        const heartbeat = JSON.parse(event.data);
+        // Dispatch a custom event that HealthIndicator components can listen to
+        window.dispatchEvent(new CustomEvent('inverterHeartbeat', { 
+          detail: heartbeat 
+        }));
       });
+      
+      // Handle site metrics events (latest readings for chart)
+      eventSource.addEventListener('siteMetrics', (event) => {
+        const siteMetrics = JSON.parse(event.data);
+        console.log('Site Metrics:', siteMetrics);
+        
+        // Store latest site metrics for tiles and energy counters
+        setLatestSiteMetrics(siteMetrics);
+        
+        // Simply accumulate site metrics events for chart
+        setHistoricalData(prev => {
+          const newHistory = [...prev, siteMetrics];
+          // Keep only last 10 minutes of data
+          const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+          return newHistory.filter(event => new Date(event.timestamp) >= tenMinutesAgo);
+        });
+      });
+
+      // Individual device data updates are no longer sent - all updates come via siteUpdate
     };
 
     connectSSE();
@@ -240,7 +218,7 @@ export default function Home() {
     };
   }, []);
 
-  // Load initial status and history
+  // Load initial status
   useEffect(() => {
     // Load device status
     fetch('/api/status')
@@ -281,27 +259,6 @@ export default function Home() {
         console.error(error);
         setInitialLoadComplete(true);
       });
-
-    // Load historical data
-    fetch('/api/history')
-      .then(res => res.json())
-      .then(data => {
-        if (data.success && data.history) {
-          const newHistoricalData = new Map<string, any[]>();
-          for (const [ip, history] of Object.entries(data.history)) {
-            // Convert timestamp strings back to Date objects
-            const processedHistory = (history as any[]).map(point => ({
-              ...point,
-              timestamp: new Date(point.timestamp)
-            }));
-            newHistoricalData.set(ip, processedHistory);
-          }
-          setHistoricalData(newHistoricalData);
-        }
-      })
-      .catch(error => {
-        console.error('Error loading historical data:', error);
-      });
   }, []);
 
   // Update status dots every second
@@ -339,6 +296,7 @@ export default function Home() {
     return <Circle className="w-6 h-6 text-gray-400" />;
   };
 
+
   return (
     <div className="min-h-screen bg-black p-6">
       {/* Header */}
@@ -347,13 +305,12 @@ export default function Home() {
           <div className="flex items-center space-x-4">
             <h1 className="text-3xl font-bold text-white">Fronius Pusher</h1>
           </div>
-          {isScanning !== null && (
-            <button
-              onClick={scanDevices}
-              disabled={isScanning}
-              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-600 transition flex items-center space-x-2"
-            >
-              {isScanning ? (
+          <button
+            onClick={scanDevices}
+            disabled={isScanning}
+            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-600 transition flex items-center space-x-2"
+          >
+            {isScanning ? (
               <>
                 <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
@@ -367,8 +324,7 @@ export default function Home() {
                 <span>Scan</span>
               </>
             )}
-            </button>
-          )}
+          </button>
         </div>
       </div>
 
@@ -385,79 +341,49 @@ export default function Home() {
                 {siteInfo.name}
               </h3>
               <span className="text-sm text-gray-400">Site Total</span>
+              <HealthIndicator devices={devices} />
             </div>
             
-            {/* Site Power Cards - Order: Solar, Battery, Load, Grid */}
+            {/* Site Power Cards - Order: Solar, Battery, Grid, Load */}
             <div className="flex flex-wrap gap-3 mt-4 mb-5">
-              {/* Solar */}
-              <div className="bg-gray-900 p-2 rounded w-[200px]">
-                <p className="text-xs text-gray-500">Solar (Total)</p>
-                <div className="flex items-center space-x-2">
-                  <Sun className="w-6 h-6 text-yellow-400" />
-                  <span className="text-2xl font-bold text-yellow-400">
-                    {siteInfo.powerW.solar !== null 
-                      ? <>{(siteInfo.powerW.solar / 1000).toFixed(1)}<span className="text-sm font-normal ml-1">kW</span></>
-                      : '—'
-                    }
-                  </span>
-                </div>
-              </div>
+              <PowerCard
+                label="Solar (Total)"
+                iconName="solar"
+                color="yellow"
+                value={latestSiteMetrics?.site?.solar?.powerW !== null && latestSiteMetrics?.site?.solar?.powerW !== undefined ? latestSiteMetrics.site.solar.powerW / 1000 : null}
+              />
               
-              {/* Battery */}
-              {siteInfo.powerW.battery !== 0 && (
-                <div className="bg-gray-900 p-2 rounded w-[200px]">
-                  <p className="text-xs text-gray-500">Battery</p>
-                  <div className="flex items-center space-x-2">
-                    <Battery className="w-6 h-6 text-blue-400" />
-                    <span className="text-2xl font-bold text-blue-400">
-                      {(Math.abs(siteInfo.powerW.battery) / 1000).toFixed(1)}
-                      <span className="text-sm font-normal ml-1">kW</span>
-                      {siteInfo.batterySOC !== null && (
-                        <>
-                          <span className="text-sm font-normal mx-1">/</span>
-                          {siteInfo.batterySOC.toFixed(1)}
-                          <span className="text-sm font-normal ml-0.5">%</span>
-                        </>
-                      )}
-                    </span>
-                  </div>
-                  <p className="text-xs text-gray-500">
-                    {siteInfo.powerW.battery < 0 ? 'Charging' : 
-                     siteInfo.powerW.battery > 0 ? 'Discharging' : 'Idle'}
-                  </p>
-                </div>
+              {latestSiteMetrics?.site?.battery?.powerW !== null && latestSiteMetrics?.site?.battery?.powerW !== undefined && latestSiteMetrics.site.battery.powerW !== 0 && (
+                <PowerCard
+                  label="Battery"
+                  iconName="battery"
+                  color="blue"
+                  value={Math.abs(latestSiteMetrics.site.battery.powerW) / 1000}
+                  secondaryValue={latestSiteMetrics.site.battery.soc}
+                  secondaryUnit="%"
+                  subtext={
+                    latestSiteMetrics.site.battery.powerW < -100 ? 'Charging' : 
+                    latestSiteMetrics.site.battery.powerW > 100 ? 'Discharging' : 'Idle'
+                  }
+                />
               )}
               
-              {/* Load (Calculated) */}
-              <div className="bg-gray-900 p-2 rounded w-[200px]">
-                <p className="text-xs text-gray-500">Load (Calculated)</p>
-                <div className="flex items-center space-x-2">
-                  <HomeIcon className="w-6 h-6 text-orange-400" />
-                  <span className="text-2xl font-bold text-orange-400">
-                    {siteInfo.powerW.load !== null 
-                      ? <>{(siteInfo.powerW.load / 1000).toFixed(1)}<span className="text-sm font-normal ml-1">kW</span></>
-                      : '—'
-                    }
-                  </span>
-                </div>
-              </div>
-              
-              {/* Grid */}
-              {siteInfo.powerW.grid !== 0 && (
-                <div className="bg-gray-900 p-2 rounded w-[200px]">
-                  <p className="text-xs text-gray-500">Grid</p>
-                  <div className="flex items-center space-x-2">
-                    <Zap className="w-6 h-6 text-purple-400" />
-                    <span className="text-2xl font-bold text-purple-400">
-                      {(Math.abs(siteInfo.powerW.grid) / 1000).toFixed(1)}
-                      <span className="text-sm font-normal ml-1">kW</span>
-                    </span>
-                  </div>
-                  <p className="text-xs text-gray-500">
-                    {siteInfo.powerW.grid > 0 ? 'Importing' : 'Exporting'}
-                  </p>
-                </div>
+              {latestSiteMetrics?.site?.grid?.powerW !== null && latestSiteMetrics?.site?.grid?.powerW !== undefined && (
+                <PowerCard
+                  label="Grid"
+                  iconName="grid"
+                  color="purple"
+                  value={Math.abs(latestSiteMetrics.site.grid.powerW) / 1000}
+                  subtext={latestSiteMetrics.site.grid.powerW > 0 ? 'Importing' : latestSiteMetrics.site.grid.powerW < 0 ? 'Exporting' : 'Idle'}
+                />
               )}
+              
+              <PowerCard
+                label="Load"
+                iconName="load"
+                color="orange"
+                value={latestSiteMetrics?.site?.load?.powerW !== null && latestSiteMetrics?.site?.load?.powerW !== undefined ? latestSiteMetrics.site.load.powerW / 1000 : null}
+              />
             </div>
             
             {/* FroniusMinutely Display */}
@@ -471,17 +397,30 @@ export default function Home() {
         {!initialLoadComplete ? (
           <div className="flex items-center justify-center h-64">
             <div className="bg-transparent rounded-lg p-6 text-center">
-              <p className="text-gray-500 text-lg">Loading inverters...</p>
+              <p className="text-gray-500 text-lg">Loading system…</p>
             </div>
           </div>
         ) : devices.length === 0 ? (
           <div className="flex items-center justify-center h-64 bg-black rounded">
             <div className="text-center">
-              <svg className="w-12 h-12 mx-auto mb-2 text-gray-600" fill="none" 
-                stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-              </svg>
-              <p className="text-gray-500 text-sm">No devices found</p>
+              {isScanning ? (
+                <>
+                  <svg className="w-12 h-12 mx-auto mb-2 text-gray-400 animate-spin" fill="none" 
+                    stroke="currentColor" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  <p className="text-gray-500 text-sm">Scanning for devices…</p>
+                </>
+              ) : (
+                <>
+                  <svg className="w-12 h-12 mx-auto mb-2 text-gray-600" fill="none" 
+                    stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                  <p className="text-gray-500 text-sm">No devices found</p>
+                </>
+              )}
             </div>
           </div>
         ) : (
@@ -505,7 +444,7 @@ export default function Home() {
               <div className="flex-1">
                 <div className="flex items-center space-x-3 mt-4">
                   <h3 className="text-2xl font-semibold text-white">
-                    {device.info?.CustomName || 'Fronius Inverter'}
+                    {device.info?.inverter?.customName || 'Fronius Inverter'}
                   </h3>
                   <div className="relative group">
                     <a
@@ -540,12 +479,7 @@ export default function Home() {
                     </div>
                   </div>
                   <div className="flex items-center space-x-2">
-                    <div className={`w-2 h-2 rounded-full ${
-                      device.lastDataFetch && 
-                      (new Date().getTime() - new Date(device.lastDataFetch).getTime() < 10000) 
-                        ? 'bg-green-500' 
-                        : 'bg-red-500'
-                    }`} />
+                    <HealthIndicator serialNumber={device.serialNumber} />
                     {device.lastDataFetch && 
                      (new Date().getTime() - new Date(device.lastDataFetch).getTime() >= 10000) && (
                       <span className="text-xs text-gray-500">
@@ -555,85 +489,68 @@ export default function Home() {
                   </div>
                 </div>
                 <p className="text-xs">
-                  <span className="text-gray-400 font-medium">{device.info?.model || 'Unknown Model'}</span>
-                  <span className="text-gray-500 ml-2">Serial# {device.serialNumber}</span>
+                  <span className="text-gray-500">Serial# {device.serialNumber}</span>
                 </p>
                 
                 {/* Power Cards */}
-                {device.data?.Body?.Data?.Site && (
+                {latestSiteMetrics && latestSiteMetrics[device.serialNumber] && (
                   <div className="flex flex-wrap gap-3 mt-4 mb-5">
                     {/* Solar */}
-                    {device.data.Body.Data.Site.P_PV !== undefined && device.data.Body.Data.Site.P_PV !== null && (
-                      <div className="bg-gray-900 p-2 rounded w-[200px]">
-                        <p className="text-xs text-gray-500">Solar</p>
-                        <div className="flex items-center space-x-2">
-                          <Sun className="w-6 h-6 text-yellow-400" />
-                          <span className="text-2xl font-bold text-yellow-400">
-                            {(device.data.Body.Data.Site.P_PV / 1000).toFixed(1)}
-                            <span className="text-sm font-normal ml-1">kW</span>
-                          </span>
-                        </div>
-                      </div>
+                    {latestSiteMetrics[device.serialNumber].solar?.powerW !== undefined && latestSiteMetrics[device.serialNumber].solar?.powerW !== null && (
+                      <PowerCard
+                        label="Solar"
+                        iconName="solar"
+                        color="yellow"
+                        value={latestSiteMetrics[device.serialNumber].solar.powerW / 1000}
+                        infoTitle="Inverter Details"
+                        infoItems={device.info?.inverter ? [
+                          { label: "Manufacturer", value: device.info.inverter.manufacturer },
+                          { label: "Model", value: device.info.inverter.model },
+                          { label: "PV Capacity", value: `${(device.info.inverter.pvPowerW / 1000).toFixed(1)} kW` },
+                          { label: "Serial", value: device.info.inverter.serialNumber }
+                        ] : undefined}
+                      />
                     )}
                     
                     {/* Battery */}
-                    {device.data.Body.Data.Site.P_Akku !== undefined && device.data.Body.Data.Site.P_Akku !== null && (
-                      <div className="bg-gray-900 p-2 rounded w-[200px]">
-                        <p className="text-xs text-gray-500">Battery</p>
-                        <div className="flex items-center space-x-2">
-                          <Battery className="w-6 h-6 text-blue-400" />
-                          <span className="text-2xl font-bold text-blue-400">
-                            {(Math.abs(device.data.Body.Data.Site.P_Akku) / 1000).toFixed(1)}
-                            <span className="text-sm font-normal ml-1">kW</span>
-                            {(() => {
-                              const inverters = device.data.Body.Data.Inverters;
-                              const firstInverter = inverters && Object.values(inverters)[0] as any;
-                              if (firstInverter?.SOC !== undefined && firstInverter?.SOC !== null) {
-                                return (
-                                  <>
-                                    <span className="text-sm font-normal mx-1">/</span>
-                                    {firstInverter.SOC.toFixed(1)}
-                                    <span className="text-sm font-normal ml-0.5">%</span>
-                                  </>
-                                );
-                              }
-                              return null;
-                            })()}
-                          </span>
-                        </div>
-                        <p className="text-xs text-gray-500">
-                          {device.data.Body.Data.Site.P_Akku < 0 ? 'Charging' : 
-                           device.data.Body.Data.Site.P_Akku > 0 ? 'Discharging' : 'Idle'}
-                        </p>
-                      </div>
-                    )}
-                    
-                    {/* Load */}
-                    {device.data.Body.Data.Site.P_Load !== undefined && device.data.Body.Data.Site.P_Load !== null && (
-                      <div className="bg-gray-900 p-2 rounded w-[200px]">
-                        <p className="text-xs text-gray-500">Load</p>
-                        <div className="flex items-center space-x-2">
-                          <HomeIcon className="w-6 h-6 text-orange-400" />
-                          <span className="text-2xl font-bold text-orange-400">
-                            {(Math.abs(device.data.Body.Data.Site.P_Load) / 1000).toFixed(1)}
-                            <span className="text-sm font-normal ml-1">kW</span>
-                          </span>
-                        </div>
-                      </div>
+                    {latestSiteMetrics[device.serialNumber].battery?.powerW !== undefined && latestSiteMetrics[device.serialNumber].battery?.powerW !== null && (
+                      <PowerCard
+                        label="Battery"
+                        iconName="battery"
+                        color="blue"
+                        value={Math.abs(latestSiteMetrics[device.serialNumber].battery.powerW) / 1000}
+                        unit="kW"
+                        secondaryValue={latestSiteMetrics[device.serialNumber].battery?.soc}
+                        secondaryUnit="%"
+                        subtext={latestSiteMetrics[device.serialNumber].battery.powerW < -100 ? 'Charging' : 
+                                 latestSiteMetrics[device.serialNumber].battery.powerW > 100 ? 'Discharging' : 'Idle'}
+                        infoTitle="Battery Details"
+                        infoItems={device.info?.battery ? [
+                          ...(device.info.battery.manufacturer ? [{ label: "Manufacturer", value: device.info.battery.manufacturer }] : []),
+                          ...(device.info.battery.model ? [{ label: "Model", value: device.info.battery.model }] : []),
+                          ...(device.info.battery.capacityWh ? [{ label: "Capacity", value: `${(device.info.battery.capacityWh / 1000).toFixed(1)} kWh` }] : []),
+                          ...(device.info.battery.serial ? [{ label: "Serial", value: device.info.battery.serial }] : [])
+                        ] : undefined}
+                      />
                     )}
                     
                     {/* Grid */}
-                    {device.data.Body.Data.Site.P_Grid !== undefined && device.data.Body.Data.Site.P_Grid !== null && (
-                      <div className="bg-gray-900 p-2 rounded w-[200px]">
-                        <p className="text-xs text-gray-500">Grid</p>
-                        <div className="flex items-center space-x-2">
-                          <Zap className="w-6 h-6 text-purple-400" />
-                          <span className="text-2xl font-bold text-purple-400">
-                            {(Math.abs(device.data.Body.Data.Site.P_Grid) / 1000).toFixed(1)}
-                            <span className="text-sm font-normal ml-1">kW</span>
-                          </span>
-                        </div>
-                      </div>
+                    {latestSiteMetrics[device.serialNumber].grid?.powerW !== undefined && latestSiteMetrics[device.serialNumber].grid?.powerW !== null && (
+                      <PowerCard
+                        label="Grid"
+                        iconName="grid"
+                        color="purple"
+                        value={Math.abs(latestSiteMetrics[device.serialNumber].grid.powerW) / 1000}
+                        subtext={latestSiteMetrics[device.serialNumber].grid.powerW > 0 ? 'Importing' : 'Exporting'}
+                        infoTitle="Grid Meter Details"
+                        infoItems={device.info?.meter ? [
+                          ...(device.info.meter.manufacturer ? [{ label: "Manufacturer", value: device.info.meter.manufacturer }] : []),
+                          ...(device.info.meter.model ? [{ label: "Model", value: device.info.meter.model }] : []),
+                          ...(device.info.meter.location ? [{ label: "Location", value: device.info.meter.location }] : []),
+                          ...(device.info.meter.serial ? [{ label: "Serial", value: device.info.meter.serial }] : []),
+                          ...(device.info.meter.enabled !== undefined ? [{ label: "Status", value: device.info.meter.enabled ? 'Enabled' : 'Disabled' }] : [])
+                        ] : undefined}
+                      />
                     )}
                   </div>
                 )}
@@ -644,31 +561,40 @@ export default function Home() {
       </div>
 
       {/* Power Chart - Below Inverters */}
-      {devices.length > 0 && historicalData.size > 0 && (
+      {devices.length > 0 && historicalData.length > 0 && (
         <div className="mb-6">
           <div className="bg-transparent rounded-lg">
-            <PowerChart devices={
-              devices.map(device => ({
-                ip: device.ip,
-                name: device.info?.CustomName || device.hostname?.split('.')[0] || device.ip,
-                data: historicalData.get(device.ip) || []
-              }))
-            } />
+            <PowerChart 
+              historicalData={historicalData}
+              devices={devices}
+            />
           </div>
         </div>
       )}
 
       {/* Energy Table - Below Chart */}
-      {devices.length > 0 && energyCounters.size > 0 && (
+      {devices.length > 0 && latestSiteMetrics && (
         <EnergyTable 
-          devices={devices
-            .filter(device => energyCounters.has(device.serialNumber))
-            .map(device => ({
-              ip: device.ip,
-              name: device.info?.CustomName || device.hostname?.split('.')[0] || device.ip,
-              energyCounters: energyCounters.get(device.serialNumber)!
-            }))}
-          siteEnergy={siteInfo?.energyKwh || null}
+          devices={devices.map(device => ({
+            ip: device.ip,
+            name: device.info?.inverter?.customName || device.hostname?.split('.')[0] || device.ip,
+            energyCounters: latestSiteMetrics[device.serialNumber] ? {
+              solarWh: latestSiteMetrics[device.serialNumber].solar?.energyWh,
+              batteryInWh: latestSiteMetrics[device.serialNumber].battery?.energyInWh,
+              batteryOutWh: latestSiteMetrics[device.serialNumber].battery?.energyOutWh,
+              gridInWh: latestSiteMetrics[device.serialNumber].grid?.energyInWh,
+              gridOutWh: latestSiteMetrics[device.serialNumber].grid?.energyOutWh,
+              loadWh: undefined // Load is only at site level
+            } : {}
+          }))}
+          siteEnergy={latestSiteMetrics?.site ? {
+            solarWh: latestSiteMetrics.site.solar?.energyWh,
+            batteryInWh: latestSiteMetrics.site.battery?.energyInWh,
+            batteryOutWh: latestSiteMetrics.site.battery?.energyOutWh,
+            gridInWh: latestSiteMetrics.site.grid?.energyInWh,
+            gridOutWh: latestSiteMetrics.site.grid?.energyOutWh,
+            loadWh: latestSiteMetrics.site.load?.energyWh
+          } : null}
         />
       )}
 
