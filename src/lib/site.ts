@@ -1,9 +1,11 @@
 import { discoverFroniusInverters } from './fronius-discovery';
 import EventEmitter from 'events';
+import crypto from 'crypto';
 import { Inverter, PowerData } from './inverter';
 import { InverterInfo, BatteryInfo, MeterInfo } from '@/types/device';
 import { FroniusMinutely } from '@/types/fronius';
 import { formatLocalDateTime } from './date-utils';
+import { LiveOnePushService } from './liveone-push';
 
 interface FroniusDevice {
   ip: string;
@@ -30,7 +32,7 @@ export class Site extends EventEmitter {
   private devices: Map<string, FroniusDevice> = new Map();  // Cache for discovered devices
   
   // Energy tracking
-  private sessionId: string = Date.now().toString();
+  private sessionId: string;  // Base64-encoded 24-bit random number (4 chars)
   private sequenceNumber: number = 0;
   private lastEnergySnapshot: Map<string, any> = new Map();
   private froniusMinutelyHistory: FroniusMinutely[] = [];
@@ -39,13 +41,24 @@ export class Site extends EventEmitter {
   
   // Polling and scanning state
   private pollingInterval: NodeJS.Timeout | null = null;
-  private energyDeltaInterval: NodeJS.Timeout | null = null;
   private isScanning: boolean = false;
   private lastScan: Date | null = null;
+  private lastMinute: number | null = null;  // Track last minute for FroniusMinutely generation
+  
+  // LiveOne push service
+  private liveOnePush: LiveOnePushService;
   
   constructor(name: string = 'Main Site') {
     super();
     this.name = name;
+    
+    // Generate a 24-bit random number (3 bytes) and encode as base64
+    const randomBytes = crypto.randomBytes(3);
+    // Convert to base64 (will be 4 characters)
+    this.sessionId = randomBytes.toString('base64');
+    
+    // Initialize LiveOne push service
+    this.liveOnePush = new LiveOnePushService();
   }
   
   // Start polling inverters
@@ -56,17 +69,19 @@ export class Site extends EventEmitter {
     
     this.pollingInterval = setInterval(async () => {
       await this.pollAllInverters();
+      
+      // Check if we rolled over to a new minute
+      const currentMinute = new Date().getMinutes();
+      if (this.lastMinute !== currentMinute) {
+        // We just crossed a minute boundary
+        this.generateAndEmitFroniusMinutely();
+      }
+      this.lastMinute = currentMinute;
     }, intervalMs);
     
-    // Start energy delta reporting (once per minute)
-    if (!this.energyDeltaInterval) {
-      this.energyDeltaInterval = setInterval(() => {
-        this.generateAndEmitFroniusMinutely();
-      }, 60000);
-    }
-    
-    // Do initial poll
+    // Do initial poll and set initial minute
     this.pollAllInverters();
+    this.lastMinute = new Date().getMinutes();
   }
   
   // Stop polling
@@ -74,11 +89,6 @@ export class Site extends EventEmitter {
     if (this.pollingInterval) {
       clearInterval(this.pollingInterval);
       this.pollingInterval = null;
-    }
-    
-    if (this.energyDeltaInterval) {
-      clearInterval(this.energyDeltaInterval);
-      this.energyDeltaInterval = null;
     }
   }
   
@@ -618,11 +628,16 @@ export class Site extends EventEmitter {
   }
   
   // Generate and emit FroniusMinutely report
-  private generateAndEmitFroniusMinutely(): void {
+  private async generateAndEmitFroniusMinutely(): Promise<void> {
     const froniusMinutely = this.generateFroniusMinutely();
     
     if (froniusMinutely) {
       this.emit('froniusMinutely', froniusMinutely);
+      
+      // Push to LiveOne if enabled
+      if (this.liveOnePush.isEnabled()) {
+        await this.liveOnePush.pushFroniusMinutely(froniusMinutely);
+      }
     }
   }
   
@@ -704,8 +719,6 @@ export class Site extends EventEmitter {
     this.lastEnergySnapshot.set('master', { solarWh: masterSnapshot.solarWh + masterSolarIntervalWh });
     this.lastEnergySnapshot.set('slave', { solarWh: slaveSnapshot.solarWh + slaveSolarIntervalWh });
     
-    this.sequenceNumber++;
-    
     const faults = this.getFaults();
     let faultCode: string | number | null = null;
     let faultTimestamp: string | null = null;
@@ -719,40 +732,35 @@ export class Site extends EventEmitter {
       timestamp: formatLocalDateTime(new Date()),
       sequence: `${this.sessionId}/${this.sequenceNumber}`,
       solarW: Math.round(totalSolarPowerW),
-      solarIntervalWh: delta.solarWh,
+      solarWhInterval: delta.solarWh,
       
       solarLocalW: Math.round(masterPowerW),
-      solarLocalIntervalWh: masterSolarIntervalWh,
+      solarLocalWhInterval: masterSolarIntervalWh,
       
       solarRemoteW: Math.round(slavePowerW),
-      solarRemoteIntervalWh: slaveSolarIntervalWh,
+      solarRemoteWhInterval: slaveSolarIntervalWh,
       
       loadW: Math.round(this.calculateLoadPowerW() || 0),
-      loadIntervalWh: delta.loadWh,
+      loadWhInterval: delta.loadWh,
       
       batteryW: Math.round(this.getTotalBatteryPowerW() ?? 0),
-      batteryInIntervalWh: delta.batteryInWh,
-      batteryOutIntervalWh: delta.batteryOutWh,
+      batteryInWhInterval: delta.batteryInWh,
+      batteryOutWhInterval: delta.batteryOutWh,
       
       gridW: Math.round(this.getTotalGridPowerW() ?? 0),
-      gridInIntervalWh: delta.gridInWh,
-      gridOutIntervalWh: delta.gridOutWh,
+      gridInWhInterval: delta.gridInWh,
+      gridOutWhInterval: delta.gridOutWh,
       
       batterySOC: this.getBatterySOC() !== null ? Math.round(this.getBatterySOC()! * 10) / 10 : null,
       
       faultCode: faultCode,
       faultTimestamp: faultTimestamp,
       
-      generatorStatus: null,
-      
-      // Total accumulated values (we can track these later if needed)
-      solarKwhTotal: null,
-      loadKwhTotal: null,
-      batteryInKwhTotal: null,
-      batteryOutKwhTotal: null,
-      gridInKwhTotal: null,
-      gridOutKwhTotal: null
+      generatorStatus: null
     };
+    
+    // Increment sequence number after use (post-increment)
+    this.sequenceNumber++;
     
     // Add to history
     this.froniusMinutelyHistory.push(froniusMinutely);
@@ -788,6 +796,11 @@ export class Site extends EventEmitter {
   // Get master inverters
   public getMasterInverters(): Inverter[] {
     return this.getInverters().filter(inv => inv.getIsMaster());
+  }
+  
+  // Get LiveOne service
+  public getLiveOneService(): LiveOnePushService {
+    return this.liveOnePush;
   }
   
   // Legacy compatibility methods

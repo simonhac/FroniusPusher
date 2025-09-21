@@ -179,7 +179,7 @@ export default function FroniusMinutelyDisplay({ history }: FroniusMinutelyDispl
                     {formatPowerValue(report.solarW)}
                   </td>
                   <td className="py-1 px-1 text-right  font-mono text-sm">
-                    {formatEnergyValue(report.solarIntervalWh)}
+                    {formatEnergyValue(report.solarWhInterval)}
                   </td>
                   <td className="w-4"></td>
                   {/* Battery */}
@@ -187,10 +187,10 @@ export default function FroniusMinutelyDisplay({ history }: FroniusMinutelyDispl
                     {formatBatteryPower(report.batteryW)}
                   </td>
                   <td className="py-1 px-1 text-right  font-mono text-sm text-green-400">
-                    {report.batteryInIntervalWh !== null ? report.batteryInIntervalWh.toLocaleString() : '—'}
+                    {report.batteryInWhInterval !== null ? report.batteryInWhInterval.toLocaleString() : '—'}
                   </td>
                   <td className="py-1 px-1 text-right  font-mono text-sm text-blue-400">
-                    {report.batteryOutIntervalWh !== null ? report.batteryOutIntervalWh.toLocaleString() : '—'}
+                    {report.batteryOutWhInterval !== null ? report.batteryOutWhInterval.toLocaleString() : '—'}
                   </td>
                   <td className="py-1 px-1 text-right  font-mono text-sm">
                     {report.batterySOC !== null ? report.batterySOC.toFixed(1) : '—'}
@@ -201,10 +201,10 @@ export default function FroniusMinutelyDisplay({ history }: FroniusMinutelyDispl
                     {formatGridPower(report.gridW)}
                   </td>
                   <td className="py-1 px-1 text-right  font-mono text-sm text-purple-400">
-                    {report.gridInIntervalWh !== null ? report.gridInIntervalWh.toLocaleString() : '—'}
+                    {report.gridInWhInterval !== null ? report.gridInWhInterval.toLocaleString() : '—'}
                   </td>
                   <td className="py-1 px-1 text-right  font-mono text-sm text-purple-300">
-                    {report.gridOutIntervalWh !== null ? report.gridOutIntervalWh.toLocaleString() : '—'}
+                    {report.gridOutWhInterval !== null ? report.gridOutWhInterval.toLocaleString() : '—'}
                   </td>
                   <td className="w-4"></td>
                   {/* Load */}
@@ -212,7 +212,7 @@ export default function FroniusMinutelyDisplay({ history }: FroniusMinutelyDispl
                     {formatPowerValue(report.loadW)}
                   </td>
                   <td className="py-1 px-1 text-right  font-mono text-sm">
-                    {formatEnergyValue(report.loadIntervalWh)}
+                    {formatEnergyValue(report.loadWhInterval)}
                   </td>
                 </tr>
               );

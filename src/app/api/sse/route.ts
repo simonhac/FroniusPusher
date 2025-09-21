@@ -18,11 +18,30 @@ export async function GET(request: NextRequest) {
   let isConnected = true;
 
   const stream = new ReadableStream({
-    start(controller) {
+    async start(controller) {
       const site = getSite();
       
       // Send initial connection
       controller.enqueue(encoder.encode(': connected\n\n'));
+      
+      // Test LiveOne connection and send results
+      const liveOneService = site.getLiveOneService();
+      if (liveOneService) {
+        try {
+          const testResult = await liveOneService.testConnection();
+          controller.enqueue(
+            encoder.encode(`event: pushTest\ndata: ${JSON.stringify(testResult, dateReplacer)}\n\n`)
+          );
+        } catch (error: any) {
+          controller.enqueue(
+            encoder.encode(`event: pushTest\ndata: ${JSON.stringify({
+              success: false,
+              message: 'Test failed',
+              error: error.message
+            }, dateReplacer)}\n\n`)
+          );
+        }
+      }
       
       // Send site info immediately (includes devices)
       const siteInfo = site.getSiteInfo();

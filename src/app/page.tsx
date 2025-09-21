@@ -213,6 +213,12 @@ export default function Home() {
           return newHistory.filter(event => new Date(event.timestamp) >= tenMinutesAgo);
         });
       });
+      
+      // Handle LiveOne push test results
+      eventSource.addEventListener('pushTest', (event) => {
+        const testResult = JSON.parse(event.data);
+        console.log('[SSE] pushTest:', testResult);
+      });
 
       // Individual device data updates are no longer sent - all updates come via siteUpdate
     };

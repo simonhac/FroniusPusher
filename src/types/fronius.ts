@@ -1,25 +1,25 @@
 export interface FroniusMinutely {
-  timestamp: string;  // Formatted using formatLocalDateTime
-  sequence: string;   // Format: "XXXX/N" where XXXX is 4-digit hex, N is incrementing decimal
+  timestamp: string;  // ISO 8601 format timestamp
+  sequence: string;   // Format: "XXXX/N" where XXXX is base64-encoded 24-bit random (4 chars), N is incrementing decimal
   solarW: number;
-  solarIntervalWh: number;
+  solarWhInterval: number;
   
   solarLocalW: number;
-  solarLocalIntervalWh: number;
+  solarLocalWhInterval: number;
   
   solarRemoteW: number;
-  solarRemoteIntervalWh: number;
+  solarRemoteWhInterval: number;
   
   loadW: number;
-  loadIntervalWh: number;
+  loadWhInterval: number;
   
   batteryW: number;
-  batteryInIntervalWh: number;
-  batteryOutIntervalWh: number;
+  batteryInWhInterval: number;
+  batteryOutWhInterval: number;
   
   gridW: number;
-  gridInIntervalWh: number;
-  gridOutIntervalWh: number;
+  gridInWhInterval: number;
+  gridOutWhInterval: number;
   
   batterySOC: number | null;
   
@@ -27,12 +27,4 @@ export interface FroniusMinutely {
   faultTimestamp: string | null;  // Formatted using formatLocalDateTime
   
   generatorStatus: null;  // Fronius doesn't have generator
-  
-  // Total accumulated values in kWh (null for now, can be added later)
-  solarKwhTotal: number | null;
-  loadKwhTotal: number | null;
-  batteryInKwhTotal: number | null;
-  batteryOutKwhTotal: number | null;
-  gridInKwhTotal: number | null;
-  gridOutKwhTotal: number | null;
 }

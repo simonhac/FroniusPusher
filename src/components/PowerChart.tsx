@@ -167,7 +167,7 @@ export default function PowerChart({ historicalData, devices }: PowerChartProps)
       data: siteLoad,
       borderColor: 'rgb(249, 115, 22)',
       backgroundColor: 'rgba(249, 115, 22, 0.1)',
-      borderWidth: 2,
+      borderWidth: 2.6, // 30% thicker than standard 2px
       tension: 0.1,
       pointRadius: 0,
       pointHoverRadius: 4,
