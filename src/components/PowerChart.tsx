@@ -263,9 +263,9 @@ export default function PowerChart({ historicalData, devices }: PowerChartProps)
       y: {
         display: true,
         position: 'left' as const,
-        // Determine min based on whether there's battery data
-        min: siteBattery.some(val => val !== null) ? -1 : 0,
-        max: 5, // Always show at least 5kW
+        // Auto-scale but ensure minimum visible range
+        suggestedMin: siteBattery.some(val => val !== null) ? -1 : 0,
+        suggestedMax: 5, // Show at least 5kW, but expand if data exceeds this
         title: {
           display: true,
           text: 'Power (kW)',

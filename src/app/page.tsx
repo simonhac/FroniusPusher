@@ -114,18 +114,18 @@ export default function Home() {
       // Handle high-resolution history to prepopulate the chart
       eventSource.addEventListener('hiresHistory', (event) => {
         const history = JSON.parse(event.data);
-        console.log('Received hi-res history for chart prepopulation:', history);
+        console.log('[SSE] hiresHistory: Received', history.length, 'data points for chart prepopulation');
         
         // History is now simply an array of siteMetrics objects
-        // Just set it directly
+        // Set it directly - this only runs once on connection
         setHistoricalData(history);
       });
       
       // Handle minutely history (FroniusMinutely reports)
       eventSource.addEventListener('minutelyHistory', (event) => {
         const history = JSON.parse(event.data);
+        console.log('[SSE] minutelyHistory: Received', history.length, 'minutely reports');
         setFroniusMinutelyHistory(history);
-        console.log('Received minutely history:', history);
       });
       
       // No longer needed - devices come with siteUpdate
@@ -133,8 +133,8 @@ export default function Home() {
 
       // Handle scan status updates
       eventSource.addEventListener('scanStatus', (event) => {
-        console.log('Raw scanStatus event:', event.data);
         const status = JSON.parse(event.data);
+        console.log('[SSE] scanStatus:', status);
         
         if (status.state === 'SCANNING') {
           setIsScanning(true);
@@ -146,9 +146,7 @@ export default function Home() {
       // Handle FroniusMinutely updates (once per minute)
       eventSource.addEventListener('froniusMinutely', (event) => {
         const data = JSON.parse(event.data) as FroniusMinutely;
-        const timestamp = new Date(data.timestamp).toLocaleTimeString();
-        
-        console.log(`[${timestamp}] FroniusMinutely:`, data);
+        console.log('[SSE] froniusMinutely:', data);
         setFroniusMinutelyHistory(prev => {
           const newHistory = [data, ...prev].slice(0, 10); // Keep only last 10
           return newHistory;
@@ -158,7 +156,7 @@ export default function Home() {
       // Handle site updates
       eventSource.addEventListener('siteUpdate', (event) => {
         const site = JSON.parse(event.data);
-        console.log('Received siteUpdate:', site);
+        console.log('[SSE] siteUpdate:', site);
         setSiteInfo(site);
         
         // Extract devices from site info
@@ -182,6 +180,7 @@ export default function Home() {
       // Handle inverter heartbeat events (sent on each poll)
       eventSource.addEventListener('inverterHeartbeat', (event) => {
         const heartbeat = JSON.parse(event.data);
+        // console.log('[SSE] inverterHeartbeat:', heartbeat.serialNumber, heartbeat.status);
         
         // Update lastDataFetch for the device
         setDevices(prevDevices => 
@@ -201,7 +200,7 @@ export default function Home() {
       // Handle site metrics events (latest readings for chart)
       eventSource.addEventListener('siteMetrics', (event) => {
         const siteMetrics = JSON.parse(event.data);
-        console.log('Site Metrics:', siteMetrics);
+        console.log('[SSE] siteMetrics:', siteMetrics);
         
         // Store latest site metrics for tiles and energy counters
         setLatestSiteMetrics(siteMetrics);
@@ -424,9 +423,9 @@ export default function Home() {
                 </>
               ) : (
                 <>
-                  <svg className="w-12 h-12 mx-auto mb-2 text-gray-600" fill="none" 
+                  <svg className="w-24 h-24 mx-auto mb-2 text-gray-600" fill="none" 
                     stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                   </svg>
                   <p className="text-gray-500 text-sm">No devices found</p>
                 </>

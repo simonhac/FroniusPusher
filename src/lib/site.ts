@@ -757,12 +757,10 @@ export class Site extends EventEmitter {
     // Add to history
     this.froniusMinutelyHistory.push(froniusMinutely);
     
-    // Keep only last 24 hours
-    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    this.froniusMinutelyHistory = this.froniusMinutelyHistory.filter(entry => {
-      const entryDate = new Date(entry.timestamp);
-      return entryDate >= oneDayAgo;
-    });
+    // Keep only last 20 reports
+    if (this.froniusMinutelyHistory.length > 20) {
+      this.froniusMinutelyHistory = this.froniusMinutelyHistory.slice(-20);
+    }
     
     return froniusMinutely;
   }

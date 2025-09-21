@@ -163,8 +163,15 @@ export class Inverter {
       }
       
       return null;
-    } catch (error) {
-      console.error(`Failed to fetch power flow from ${this.ip}:`, error);
+    } catch (error: any) {
+      // Extract just the error code for cleaner logging
+      if (error.code === 'ECONNABORTED') {
+        console.error(`Failed to fetch power flow from ${this.ip}: timeout of 5000ms exceeded: ${error.code}`);
+      } else if (error.code) {
+        console.error(`Failed to fetch power flow from ${this.ip}: ${error.message || error.code}`);
+      } else {
+        console.error(`Failed to fetch power flow from ${this.ip}:`, error.message || error);
+      }
       return null;
     }
   }
