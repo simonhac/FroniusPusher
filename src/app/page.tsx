@@ -368,7 +368,7 @@ export default function Home() {
                 value={latestSiteMetrics?.site?.solar?.powerW !== null && latestSiteMetrics?.site?.solar?.powerW !== undefined ? latestSiteMetrics.site.solar.powerW / 1000 : null}
               />
               
-              {latestSiteMetrics?.site?.battery?.powerW !== null && latestSiteMetrics?.site?.battery?.powerW !== undefined && latestSiteMetrics.site.battery.powerW !== 0 && (
+              {latestSiteMetrics?.site?.battery?.powerW !== null && latestSiteMetrics?.site?.battery?.powerW !== undefined && (
                 <PowerCard
                   label="Battery"
                   iconName="battery"
