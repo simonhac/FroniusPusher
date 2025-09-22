@@ -180,6 +180,19 @@ To access the dashboard from other devices on your network:
 - Negative values (battery charging, grid export) are shown below the zero line
 - If data appears missing, check the legend - series can be toggled on/off
 
+## To Do
+
+- [ ] **Control-C handling** - Make Control-C work properly for graceful shutdown
+- [ ] **Auto-start search** - Start network search automatically on launch
+- [ ] **Rolling chart fixes** - Fix rolling chart data management
+- [ ] **Small screen optimization** - Optimize display for mobile and small screens
+- [ ] **Rounding errors** - Check and prevent accumulation of rounding errors in calculations
+- [ ] **Auto-launch on Pi** - Configure automatic startup on Raspberry Pi boot
+- [ ] **Last update timestamp** - Show timestamp of most recent data update
+- [ ] **Connection info** - Display connection status in top bar
+- [ ] **Port 80** - Support running on standard HTTP port 80
+- [ ] **Zero-config startup** - Enable startup without configuration file
+
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
