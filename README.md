@@ -20,6 +20,7 @@ A real-time monitoring dashboard for Fronius solar inverters on your local netwo
 - 📊 **Minutely Reporting** - Detailed energy flow table updated every minute with bidirectional power tracking
 - 🏷️ **Device Management** - Automatic detection and tracking of inverters by serial number
 - 📐 **Auto-scaling Charts** - Dynamic Y-axis scaling that adapts to your power generation and consumption
+- ☁️ **LiveOne Integration** - Optional cloud data push to LiveOne.energy for remote monitoring
 
 ## Prerequisites
 
@@ -41,12 +42,18 @@ cd FroniusPusher
 npm install
 ```
 
-3. Run the development server:
+3. Configure environment variables (optional):
+```bash
+cp .env.example .env
+# Edit .env to configure LiveOne integration (see Configuration section)
+```
+
+4. Run the development server:
 ```bash
 npm run dev
 ```
 
-4. Open [http://localhost:8080](http://localhost:8080) in your browser
+5. Open [http://localhost:3000](http://localhost:3000) in your browser
 
 ## Production Deployment
 
@@ -62,15 +69,48 @@ npm start
 
 ## Configuration
 
-The application runs on port 8080 by default. To change the port:
+### Port Configuration
+
+The application runs on port 3000 by default. To change the port:
 
 ```bash
 # Development
-npm run dev -- --port 3000
+npm run dev -- --port 8080
 
 # Production
-PORT=3000 npm start
+PORT=8080 npm start
 ```
+
+### LiveOne Integration (Optional)
+
+To enable cloud data pushing to [LiveOne.energy](https://liveone.energy):
+
+1. Create a `.env` file in the project root (or copy from `.env.example`):
+```bash
+cp .env.example .env
+```
+
+2. Configure the following environment variables:
+```bash
+# LiveOne API Configuration
+LIVEONE_API_KEY=fr_your-api-key-here  # Your LiveOne API key (must start with 'fr_')
+LIVEONE_SERVER=https://liveone.energy  # LiveOne server URL
+LIVEONE_ENABLED=true                   # Set to 'true' to enable data pushing
+```
+
+3. Restart the application for changes to take effect
+
+When enabled, the application will:
+- Push inverter data to LiveOne every 60 seconds
+- Include power metrics (solar, battery, grid, load)
+- Include energy counters (generation, import/export, charge/discharge)
+- Support multiple inverters with automatic serial number tracking
+
+### Network Access
+
+To access the dashboard from other devices on your network:
+- Find your computer's local IP address (e.g., 10.0.1.80)
+- Access the dashboard at `http://<your-ip>:3000`
 
 ## How It Works
 
@@ -83,6 +123,7 @@ PORT=3000 npm start
 7. **Serial Number Tracking**: Device data and energy counters are tracked by serial number for consistency across reconnections
 8. **Event-Driven Updates**: Uses EventEmitter pattern for decoupled component communication
 9. **Chart Optimization**: Direct data updates without re-rendering for smooth real-time visualization
+10. **Cloud Push**: Optional integration with LiveOne.energy for remote monitoring and data analysis
 
 ## API Endpoints
 
@@ -95,6 +136,7 @@ PORT=3000 npm start
   - `froniusMinutely` - Minutely energy accumulation reports (last 20 reports)
   - `inverterHeartbeat` - Device health monitoring
   - `scanStatus` - Network scan progress updates
+  - `pushTest` - LiveOne push test results (when enabled)
 
 ## Technology Stack
 
@@ -124,8 +166,14 @@ PORT=3000 npm start
 
 ### Connection issues
 - Verify firewall settings allow access to inverter IPs
-- Check that port 8080 is not blocked
+- Check that port 3000 is not blocked
 - Ensure Node.js has network permissions
+
+### LiveOne integration issues
+- Verify your API key starts with 'fr_'
+- Check that LIVEONE_ENABLED is set to 'true' (not True or 1)
+- Monitor console logs for push status and any error messages
+- Ensure your network allows HTTPS connections to liveone.energy
 
 ### Chart display issues
 - Charts auto-scale to display all power values
