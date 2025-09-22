@@ -278,6 +278,8 @@ export default function PowerChart({ historicalData, devices }: PowerChartProps)
         ticks: {
           color: 'rgb(107, 114, 128)',
           stepSize: 1, // Force integer steps
+          // Force zero to always be included in the ticks
+          includeBounds: true,
           callback: function(value, index, ticks) {
             // Only show 'kW' on the top (last) label
             if (index === ticks.length - 1) {
@@ -285,6 +287,14 @@ export default function PowerChart({ historicalData, devices }: PowerChartProps)
             }
             // Show integer values only
             return Number.isInteger(value as number) ? value.toString() : '';
+          }
+        },
+        // Ensure zero line is always included
+        afterBuildTicks: function(axis) {
+          // Make sure 0 is always included in the ticks
+          if (!axis.ticks.some(tick => tick.value === 0)) {
+            axis.ticks.push({value: 0, label: '0'});
+            axis.ticks.sort((a, b) => a.value - b.value);
           }
         },
         grid: {
